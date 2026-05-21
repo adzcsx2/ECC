@@ -8,6 +8,26 @@ origin: ECC
 
 Comprehensive Playwright patterns for building stable, fast, and maintainable E2E test suites.
 
+## Playwright Execution: CLI vs MCP
+
+### Playwright CLI (Preferred — Use by Default)
+
+Use `npx playwright` .js scripts via Bash when:
+- Running fixed, pre-defined test suites or automation scripts
+- Batch operations that can complete in a single script execution
+- Performance matters (CLI avoids MCP protocol round-trip overhead per action)
+
+CRITICAL: Write the full script to a temp `.js` file first, then execute it with `npx playwright`.
+
+### Playwright MCP (For Interactive Debugging)
+
+Use `mcp__playwright-local__*` tools when:
+- Interactive debugging or exploratory testing step by step
+- Need to inspect page state between actions to decide next steps
+- One-off investigations where writing a script is overkill
+
+**Default**: Always prefer CLI for known, repeatable test flows. Only fall back to MCP when interactivity is actually needed.
+
 ## Test File Organization
 
 ```

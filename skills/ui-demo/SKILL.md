@@ -6,13 +6,17 @@ origin: ECC
 
 # UI Demo Video Recorder
 
-Record polished demo videos of web applications using Playwright's video recording with an injected cursor overlay, natural pacing, and storytelling flow.
+Record polished demo videos of web applications using Playwright CLI (`const { chromium } = require('playwright')`) with an injected cursor overlay, natural pacing, and storytelling flow. Playwright CLI is the preferred execution method for demo recording — write the full script to a `.cjs` file and run with `node`.
 
 ## When to Use
 
 - User asks for a "demo video", "screen recording", "walkthrough", or "tutorial"
 - User wants to showcase a feature or workflow visually
 - User needs a video for documentation, onboarding, or stakeholder presentation
+
+## Execution Preference
+
+Always use **Playwright CLI** for demo recording. Demos are batch operations with a fixed script that completes in a single execution — CLI avoids MCP protocol overhead and provides direct video file access.
 
 ## Three-Phase Process
 

@@ -16,7 +16,10 @@ origin: ECC
 
 ## How It Works
 
-Uses the browser automation MCP (claude-in-chrome, Playwright, or Puppeteer) to interact with live pages like a real user.
+Uses Playwright for browser automation. Choose the execution method based on the task:
+
+- **Playwright CLI** (preferred): For repeatable QA runs, batch checks, and CI/CD integration — write a `.js` script and run with `npx playwright`
+- **Playwright MCP** (`mcp__playwright-local__*`): For interactive QA exploration, one-off smoke tests, and step-by-step debugging
 
 ### Phase 1: Smoke Test
 ```
@@ -79,9 +82,8 @@ Uses the browser automation MCP (claude-in-chrome, Playwright, or Puppeteer) to 
 
 ## Integration
 
-Works with any browser MCP:
-- `mChild__claude-in-chrome__*` tools (preferred — uses your actual Chrome)
-- Playwright via `mcp__browserbase__*`
-- Direct Puppeteer scripts
+Works with Playwright in both modes:
+- **Playwright CLI** (preferred): Write `.js` scripts and execute via `npx playwright` — best for repeatable QA runs
+- **Playwright MCP**: `mcp__playwright-local__*` tools — best for interactive exploration and debugging
 
 Pair with `/canary-watch` for post-deploy monitoring.

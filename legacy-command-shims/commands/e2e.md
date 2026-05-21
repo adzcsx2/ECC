@@ -15,6 +15,10 @@ Use this only if you still invoke `/e2e`. The maintained workflow lives in `skil
 
 `$ARGUMENTS`
 
+## Execution Preference
+
+Prefer **Playwright CLI** (`npx playwright` via Bash) for all repeatable test runs. Use **Playwright MCP** (`mcp__playwright-local__*`) only for interactive debugging or one-off exploration.
+
 ## Delegation
 
 Apply the `e2e-testing` skill.
