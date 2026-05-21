@@ -39,6 +39,19 @@ function getClaudeManagedDestinationPath(adapter, sourceRelativePath, input) {
     );
   }
 
+  if (normalizedSourcePath === 'commands') {
+    return path.join(targetRoot, 'commands', CLAUDE_ECC_NAMESPACE);
+  }
+
+  if (normalizedSourcePath.startsWith('commands/')) {
+    return path.join(
+      targetRoot,
+      'commands',
+      CLAUDE_ECC_NAMESPACE,
+      normalizedSourcePath.slice('commands/'.length)
+    );
+  }
+
   if (normalizedSourcePath === 'docs' || normalizedSourcePath.startsWith('docs/')) {
     return path.join(targetRoot, normalizedSourcePath);
   }
