@@ -1,4 +1,40 @@
-**Language:** English | [Português (Brasil)](docs/pt-BR/README.md) | [简体中文](README.zh-CN.md) | [繁體中文](docs/zh-TW/README.md) | [日本語](docs/ja-JP/README.md) | [한국어](docs/ko-KR/README.md) | [Türkçe](docs/tr/README.md) | [Русский](docs/ru/README.md) | [Tiếng Việt](docs/vi-VN/README.md) | [ไทย](docs/th/README.md)
+> **This is a personal fork of [affaan-m/ECC](https://github.com/affaan-m/ECC).**
+> For the original project documentation, see the upstream repository.
+> This fork adds custom pipeline commands, clean install behavior, and Playwright CLI-first E2E testing.
+
+**Language:** English | [简体中文](README.zh-CN.md)
+
+---
+
+## What's New in This Fork
+
+### New Commands
+
+All commands install under the `/ecc:` namespace.
+
+| Command | Description | README |
+|---|---|---|
+| `/ecc:plan-r` | Plan → Execute → Code Review pipeline | [README](commands/plan-r/README.md) |
+| `/ecc:plan-t` | Plan → TDD auto-execution pipeline | [README](commands/plan-t/README.md) |
+| `/ecc:plan-tr` | Plan → TDD → Code Review full pipeline | [README](commands/plan-tr/README.md) |
+| `/ecc:plan-doc` | Generate task-scoped documentation set | [README](commands/plan-doc/README.md) |
+| `/ecc:plan-doc-tr` | Plan-Doc → TDD → Code Review full pipeline | [README](commands/plan-doc-tr/README.md) |
+
+### Install Improvements
+
+- **Clean install by default**: `install.sh` automatically removes legacy `everything-claude-code` plugin cache before installing, preventing old and new versions from coexisting.
+- **`/ecc:` namespace for all commands**: `commands/` now installs to `~/.claude/commands/ecc/`, giving every command the `/ecc:` prefix.
+
+### E2E Testing
+
+- Playwright CLI (`npx playwright`) is the default for all repeatable test flows.
+- Playwright MCP is reserved for interactive debugging only.
+
+### Fork Sync
+
+See [docs/FORK-SYNC.md](docs/FORK-SYNC.md) for instructions on pulling upstream changes while keeping local modifications.
+
+---
 
 # ECC
 

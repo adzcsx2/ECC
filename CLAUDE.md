@@ -79,3 +79,28 @@ Use the following skills when working on related files:
 | `.github/workflows/*.yml` | `/ci-workflow` |
 
 When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
+
+## Fork README Rules (MANDATORY)
+
+This repo is a personal fork of [affaan-m/ECC](https://github.com/affaan-m/ECC).
+Whenever you add or modify any command, skill, agent, or install behavior in this repo, you MUST:
+
+1. **Create a Chinese README** at `commands/<name>/README.md` (or `skills/<name>/README.md`, `agents/<name>/README.md`) following this format:
+   ```
+   # /ecc:<name>
+   一句话说明这是干什么的。
+   ---
+   ## 功能
+   ## 用法
+   ## 执行流程 (if applicable)
+   ## 约束 (if applicable)
+   > 源文件：[commands/<name>.md](../<name>.md)
+   ```
+
+2. **Update `README.md`** (English): add a row to the "What's New in This Fork" table with command name, one-line description, and README link.
+
+3. **Update `README.zh-CN.md`** (Chinese): add the same row in Chinese to the "本 Fork 的改动" table.
+
+4. **Do NOT modify** the other-language READMEs under `docs/` — those are upstream originals.
+
+5. Apply these rules immediately, without waiting for user reminder.
