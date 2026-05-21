@@ -6,7 +6,9 @@
  * target-specific mutation logic into testable Node code.
  */
 
+const fs = require('fs');
 const os = require('os');
+const path = require('path');
 const {
   SUPPORTED_INSTALL_TARGETS,
   listLegacyCompatibilityLanguages,
@@ -17,6 +19,62 @@ const {
   normalizeInstallRequest,
   parseInstallArgs,
 } = require('./lib/install/request');
+
+/**
+ * Clean up legacy 'everything-claude-code' plugin cache and old install-state
+ * so that old and new ECC installations never coexist.
+ *
+ * Called unconditionally before each install (except --dry-run).
+ */
+function cleanLegacyEcc(options = {}) {
+  const homeDir = process.env.HOME || os.homedir();
+  const pluginsDir = path.join(homeDir, '.claude', 'plugins');
+  const dryRun = Boolean(options.dryRun);
+
+  const legacyTargets = [
+    path.join(pluginsDir, 'cache', 'everything-claude-code'),
+    path.join(pluginsDir, 'marketplaces', 'everything-claude-code'),
+  ];
+
+  for (const targetPath of legacyTargets) {
+    if (fs.existsSync(targetPath)) {
+      if (dryRun) {
+        console.log(`[ECC dry-run] Would remove legacy path: ${targetPath}`);
+      } else {
+        console.log(`[ECC] Removing legacy ECC path: ${targetPath}`);
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      }
+    }
+  }
+
+  const pluginsConfigPath = path.join(pluginsDir, 'config.json');
+  if (fs.existsSync(pluginsConfigPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(pluginsConfigPath, 'utf8'));
+      if (cfg && cfg.plugins && cfg.plugins['everything-claude-code']) {
+        if (dryRun) {
+          console.log(`[ECC dry-run] Would remove 'everything-claude-code' from ${pluginsConfigPath}`);
+        } else {
+          console.log(`[ECC] Removing 'everything-claude-code' entry from plugins config`);
+          delete cfg.plugins['everything-claude-code'];
+          fs.writeFileSync(pluginsConfigPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+        }
+      }
+    } catch (_err) {
+      // Non-critical: skip if config is unreadable
+    }
+  }
+
+  const installStatePath = path.join(homeDir, '.claude', 'ecc', 'install-state.json');
+  if (fs.existsSync(installStatePath)) {
+    if (dryRun) {
+      console.log(`[ECC dry-run] Would remove old install-state: ${installStatePath}`);
+    } else {
+      console.log(`[ECC] Removing old install-state: ${installStatePath}`);
+      fs.rmSync(installStatePath, { force: true });
+    }
+  }
+}
 
 function getHelpText() {
   const languages = listLegacyCompatibilityLanguages();
@@ -145,6 +203,7 @@ function main() {
     });
 
     if (options.dryRun) {
+      cleanLegacyEcc({ dryRun: true });
       if (options.json) {
         console.log(JSON.stringify({ dryRun: true, plan }, null, 2));
       } else {
@@ -153,6 +212,7 @@ function main() {
       return;
     }
 
+    cleanLegacyEcc({ dryRun: false });
     const result = applyInstallPlan(plan);
     if (options.json) {
       console.log(JSON.stringify({ dryRun: false, result }, null, 2));
