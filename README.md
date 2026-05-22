@@ -22,6 +22,7 @@ All commands install under the `/ecc:` namespace.
 
 ### Install Improvements
 
+- **Default overwrite install**: Running `./install.sh` with no arguments now defaults to `--profile full --target claude`, performing a complete overwrite install. Use `./install.sh --help` to see all options.
 - **Clean install by default**: `install.sh` automatically removes legacy `everything-claude-code` plugin cache before installing, preventing old and new versions from coexisting.
 - **`/ecc:` namespace for all commands**: `commands/` now installs to `~/.claude/commands/ecc/`, giving every command the `/ecc:` prefix.
 

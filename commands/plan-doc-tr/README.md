@@ -30,11 +30,18 @@
 3. **Phase 3 — TDD 执行**：调用 `tdd-guide` 子代理执行严格 TDD，80% 最低覆盖率
 4. **Phase 4 — 代码审查闭环**：调用 `code-reviewer` 子代理审查所有变更，修复 CRITICAL/HIGH 问题后自动重跑审查，直到 `[REVIEW_PASS]`
 
+## 新增特性
+
+- **断点恢复**：检测已有 `docs/plan/<task-slug>-*/00-执行文档.md` 中的进度指针，自动从上次中断位置恢复，跳过已完成的 Phase
+- **简化确认流程**：用户输入含 "确认"/"yes" 等关键词后直接进入下一 Phase，去除冗余交互
+- **并行调度策略**：TDD 和 Code Review 阶段支持 worktree 隔离运行，不污染主工作区
+
 ## 约束
 
 - 文档先于代码生成
 - Phase 3 禁止在主对话直接写代码，必须委托 `tdd-guide`
 - 所有 Phase 必须通过真实 Agent tool 调用
+- Phase 2 启动前必须先验证文档目录存在（硬前置门）
 
 ---
 

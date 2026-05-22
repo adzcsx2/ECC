@@ -227,19 +227,21 @@ function runTests() {
     );
   })) passed++; else failed++;
 
-  if (test('rejects empty install requests when not asking for help', () => {
-    assert.throws(
-      () => normalizeInstallRequest({
-        target: 'claude',
-        profileId: null,
-        moduleIds: [],
-        includeComponentIds: [],
-        excludeComponentIds: [],
-        languages: [],
-        help: false
-      }),
-      /No install profile, module IDs, included components, or legacy languages/
-    );
+  if (test('defaults to full profile when no install selection is provided', () => {
+    const result = normalizeInstallRequest({
+      target: 'claude',
+      profileId: null,
+      moduleIds: [],
+      includeComponentIds: [],
+      excludeComponentIds: [],
+      languages: [],
+      help: false
+    });
+    assert.strictEqual(result.mode, 'manifest');
+    assert.strictEqual(result.target, 'claude');
+    assert.strictEqual(result.profileId, 'full');
+    assert.deepStrictEqual(result.moduleIds, []);
+    assert.deepStrictEqual(result.includeComponentIds, []);
   })) passed++; else failed++;
 
   console.log(`\nResults: Passed: ${passed}, Failed: ${failed}`);

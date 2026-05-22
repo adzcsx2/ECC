@@ -22,7 +22,8 @@
 
 ### 安装优化
 
-- **默认覆盖安装**：每次 `install.sh` 会自动清理旧版 `everything-claude-code` 插件缓存，避免新旧版本共存。
+- **默认覆盖安装**：直接执行 `./install.sh`（无参数）默认为 `--profile full --target claude`，一键完成完整覆盖安装。`./install.sh --help` 可查看全部选项。
+- **自动清理旧版**：每次 `install.sh` 会自动清理旧版 `everything-claude-code` 插件缓存，避免新旧版本共存。
 - **所有命令统一 `/ecc:` 命名空间**：`commands/` 目录安装到 `~/.claude/commands/ecc/`，所有命令以 `/ecc:` 前缀调用。
 
 ### E2E 测试
