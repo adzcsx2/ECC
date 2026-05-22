@@ -10,8 +10,42 @@ argument-hint: "<task-slug> [test] e.g. /ecc:plan-doc-tr my-feature"
 - Replace actual Agent/Skill tool calls with verbal declarations ("I've completed TDD/Review")
 - Write code directly in the main conversation context (all implementation must be done by the tdd-guide agent)
 - Reverse TDD order (tests MUST be written first, then implementation)
+- Start Phase 2 without a verified documentation set under `docs/plan/<task-slug>-*/` — the documentation directory is a hard prerequisite gate
 
 Any execution that violates the above constraints is considered a **command failure** and must be redone.
+
+---
+
+## Checkpoint Resume (断点恢复)
+
+Before starting any Phase, check whether a documentation set already exists for this task:
+
+```
+Scan: docs/plan/<task-slug>-*/00-执行文档.md
+```
+
+**Case A — No docs found (first run)**:
+- Proceed normally: Phase 1 generates docs, Phase 2 executes TDD from scratch, Phase 3 reviews.
+
+**Case B — Docs found with a progress pointer**:
+1. Read the `<!-- progress-pointer:start -->` YAML block from `00-执行文档.md`.
+2. Print a resume summary:
+   ```
+   检测到实施文档断点：
+     文档目录: docs/plan/<found-dir>/
+     当前 Phase: <current_phase>
+     状态: <current_phase_status>
+     下一步: <next_action>
+     阻塞项: <blockers or "无">
+   ```
+3. Skip Phase 1 entirely (docs already exist — do NOT regenerate or overwrite).
+4. Jump directly to the phase indicated by `current_phase`:
+   - `current_phase = 1` or status `not_started` / `planning` → run Phase 1 only to fill any missing docs, then continue.
+   - `current_phase = 2` or status `coding` / `self_testing` → skip Phase 1, go to Phase 2 and continue TDD from the first **unchecked** checklist item in `00-执行文档.md`.
+   - `current_phase = 3` or status `in_review` → skip Phases 1–2, go directly to Phase 3 review loop.
+   - `current_phase_status = completed` → all phases done; print final summary from existing docs, do not re-execute.
+5. When resuming Phase 2 from a checkpoint, scope tdd-guide to **only the unchecked items** — do NOT re-run already-checked items.
+6. After each checkpoint-resume phase completes, update the progress pointer in `00-执行文档.md` (tick completed items, advance `current_phase`, set new `next_action`).
 
 ---
 
@@ -38,13 +72,31 @@ Skill tool with skill: "ecc:plan-doc", args: $ARGUMENTS
 
 **Phase 1 completion marker**: All documentation files generated under `docs/plan/<task-slug>-YYYY-MM-DD/`. Main conversation then proceeds directly to Phase 2 in the same turn.
 
+**Hard gate before Phase 2**: Before executing any TDD, verify:
+```
+docs/plan/<task-slug>-*/00-执行文档.md  ← must exist and contain <!-- progress-pointer:start -->
+```
+If this file is absent or the progress pointer block is missing, Phase 2 is **blocked**. Do NOT proceed. Return to Phase 1 and complete doc generation first. Output:
+```
+[BLOCKED] 实施文档不存在或进度指针缺失。Phase 2 无法启动。
+请先完成 Phase 1 文档生成，确认 docs/plan/<task-slug>-*/00-执行文档.md 存在且包含进度指针块。
+```
+
 ---
 
 ### === Phase 2 START: TDD Execution ===
 
 **Pre-flight verification (must complete)**:
-- [ ] Are all plan-doc files generated under `docs/plan/<task-slug>-*/`?
-- If NO, stop and return to Phase 1. No separate "user confirmation to start TDD" is required — Phase 1 confirmation is the single gate for the whole pipeline.
+- [ ] Does `docs/plan/<task-slug>-*/00-执行文档.md` exist on disk? (**hard gate** — Phase 2 is blocked until YES)
+- [ ] Does it contain a `<!-- progress-pointer:start -->` block? (**hard gate** — Phase 2 is blocked until YES)
+- [ ] Is the progress pointer `current_phase_status` not `completed`? (if `completed`, output final summary and stop — do not re-execute)
+- [ ] Are all other plan-doc files present (at minimum `README.md`, `01-架构设计.md`, `02-开发规范.md`, `03-修复路线图.md`)?
+- If any item above is NO, stop and return to Phase 1. No separate "user confirmation to start TDD" is required — Phase 1 confirmation is the single gate for the whole pipeline.
+
+**Checkpoint resume in Phase 2**: After the pre-flight checks pass, read the progress pointer:
+- Identify the first **unchecked** checklist item (`- [ ]`) across all Phase checklists in `00-执行文档.md`.
+- Pass only the **remaining unchecked items** to the tdd-guide agent. Do NOT re-run items already marked `- [x]`.
+- If all items in a phase are already checked, skip that phase and advance the pointer to the next phase.
 
 **Three No's principle** (before Phase 2 starts):
 - No writing any source code directly in the main conversation
@@ -110,7 +162,13 @@ Call the `tdd-guide` subagent via Agent tool to execute according to the plan:
 
 ```
 Agent tool with subagent_type: "tdd-guide"
-prompt: "Follow the plan in docs/plan/<task-slug>-*/00-执行文档.md and execute strict TDD. Must follow RED->GREEN->IMPROVE->REPEAT cycle. 80% minimum coverage."
+prompt: "Follow the plan in docs/plan/<task-slug>-*/00-执行文档.md and execute strict TDD.
+         IMPORTANT: Before writing any code, read the progress pointer in 00-执行文档.md.
+         Start from the first UNCHECKED item (- [ ]) in the phase checklists — do NOT
+         re-run items already marked as done (- [x]).
+         After completing each checklist item: tick its checkbox (- [ ] → - [x]) and
+         append an entry to the execution log table in 00-执行文档.md.
+         Must follow RED->GREEN->IMPROVE->REPEAT cycle. 80% minimum coverage."
 ```
 
 **TDD mandatory flow** (executed by tdd-guide agent):

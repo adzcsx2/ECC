@@ -213,6 +213,16 @@ Only after Stage 3 confirmation (Stage 3.5 wait is skipped in default fast path)
      - Existing dir's date != today's date → **auto-create new** dated dir. Print one line: `已创建 <new-dir>（旧任务保留在 <found-dir>，未修改）`.
      - If target dir already exists with content matching today's date AND user explicitly wrote `force-new` in Stage 3 confirmation → create new with date suffix `-2`.
    - Only ask the user when there is a destructive conflict (different content under exact same path).
+
+   **Checkpoint resume (断点恢复)**: After resolving the target directory, check whether `00-执行文档.md` already exists inside it:
+   - If it exists and contains a `<!-- progress-pointer:start -->` block:
+     1. Read the progress pointer YAML.
+     2. Print one line: `检测到进度快照：Phase <current_phase> / <current_phase_status>`
+     3. **Do NOT regenerate any doc that already exists on disk**. Only generate missing files (e.g. if `03-修复路线图.md` is absent, generate it; skip files that are present).
+     4. Jump directly to the phase indicated by `current_phase`: append to the execution log in `00-执行文档.md` instead of overwriting it.
+     5. Skip all file-generation steps for documents that are already present; output `已跳过（已存在）` for each skipped file.
+   - If `00-执行文档.md` does not exist, proceed with full generation as normal.
+
 3. **Before writing `00-执行文档.md`**: translate the "Parallel groups analysis" from the Stage 3.5 `Generation Handoff` into a structured YAML array and embed it in the progress pointer under the `parallelizable_groups` key. The YAML format is:
    ```yaml
    parallelizable_groups:
@@ -401,6 +411,8 @@ When in doubt:
 ## Anti-Patterns
 
 - Generating docs before user confirmation (violates the plan-first workflow)
+- Overwriting an existing `00-执行文档.md` that already has a progress pointer — always treat an existing pointer as a checkpoint and resume from it rather than starting over
+- Regenerating docs that already exist on disk when resuming from a checkpoint — check for file existence before each Write call and skip files that are present
 - Generating docs immediately after `yes` / `proceed` without first stopping at the Stage 3.5 model-switch checkpoint
 - Writing test docs by default when user didn't ask or the task doesn't involve QA
 - Hardcoding subagent names that don't exist in the host's installed agents
