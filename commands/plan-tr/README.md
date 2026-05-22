@@ -27,12 +27,13 @@
 
 1. **Phase 1 — 规划**：调用 `/ecc:plan` 技能生成分步计划，等待用户确认
 2. **Phase 2 — TDD 执行**：调用 `tdd-guide` 子代理执行严格 TDD，80% 最低覆盖率
-3. **Phase 3 — 代码审查**：调用 `code-reviewer` 子代理审查所有 TDD 产出物，自动修复 CRITICAL 问题
+3. **Phase 3 — 代码审查闭环**：调用 `code-reviewer` 子代理审查所有 TDD 产出物，修复 CRITICAL/HIGH 问题后自动重跑审查，直到 `[REVIEW_PASS]`
 
 ## 约束
 
 - 所有三个 Phase 都必须通过真实 Agent tool 调用
 - Phase 2 所有测试通过且覆盖率达标后才能进入 Phase 3
+- Phase 3 存在 CRITICAL 或 HIGH 问题时必须修复并重跑 Review，直到 `[REVIEW_PASS]`
 - 任意 Phase 为 ❌ 时命令视为失败
 
 ---

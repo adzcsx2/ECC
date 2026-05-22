@@ -84,7 +84,7 @@ prompt: "Follow the plan in docs/plan/<task-slug>-*/00-执行文档.md and execu
 
 ---
 
-### === Phase 3 START: Code Review ===
+### === Phase 3 START: Code Review Loop ===
 
 **Pre-flight verification (must complete)**:
 - [ ] Was the tdd-guide agent actually called? (check Agent tool call history)
@@ -92,13 +92,32 @@ prompt: "Follow the plan in docs/plan/<task-slug>-*/00-执行文档.md and execu
 - [ ] Is coverage >= 80%?
 - If any item is NO, stop and go back to Phase 2
 
-**Execution**:
+**Code Review closed-loop mechanism** (must follow this loop until exit condition is met):
 
-Call the `code-reviewer` subagent via Agent tool to audit all changes:
+```
+LOOP:
+  1. Call code-reviewer agent to perform review
+  2. Collect review report
+  3. If CRITICAL or HIGH issues exist:
+       → Call code-reviewer agent to fix them
+       → After fix, go back to step 1 (review again)
+  4. If no CRITICAL and no HIGH issues:
+       → Exit loop, Phase 3 complete
+```
+
+**Exit condition** (both must be met):
+- No CRITICAL issues (security vulnerabilities, hardcoded secrets, injection risks)
+- No HIGH issues (large functions >50 lines, deep nesting >4 levels, missing error handling)
+- MEDIUM / LOW issues are recorded (do not block exit)
+
+**Each review round execution**:
+
+Call the `code-reviewer` subagent via Agent tool:
 
 ```
 Agent tool with subagent_type: "code-reviewer"
-prompt: "Review all changed files in git diff HEAD. Check security (CRITICAL), structure (HIGH), patterns (MEDIUM), style (LOW). Auto-fix all CRITICAL issues."
+prompt: "Review all changed files in git diff HEAD. Check security (CRITICAL), structure (HIGH), patterns (MEDIUM), style (LOW).
+Fix all CRITICAL and HIGH issues. After fixing, output: [REVIEW_PASS] if no CRITICAL/HIGH remain, or [REVIEW_FAIL: <issue list>] if issues still exist."
 ```
 
 **Code review coverage**:
@@ -109,13 +128,17 @@ prompt: "Review all changed files in git diff HEAD. Check security (CRITICAL), s
    - **MEDIUM**: Mutation patterns, missing tests, complexity issues
    - **LOW**: Naming inconsistencies, formatting issues
 3. Output structured review report (with severity level + file:line)
-4. **Auto-fix** all CRITICAL issues
-5. Fix HIGH issues if directly fixable, otherwise mark them
+4. **Fix** CRITICAL and HIGH issues
+5. End report with `[REVIEW_PASS]` or `[REVIEW_FAIL: ...]`
 
-**Phase 3 completion marker**: After code-reviewer agent returns, must see:
-- [x] Review report completed
-- [x] CRITICAL issues all auto-fixed
-- [x] HIGH/MEDIUM/LOW issues categorized
+**Loop record** (main conversation must maintain):
+
+| Round | CRITICAL | HIGH | MEDIUM | LOW | Result |
+|-------|----------|------|--------|-----|--------|
+| #1 | ? | ? | ? | ? | PASS/FAIL |
+| #2 (if needed) | ? | ? | ? | ? | PASS/FAIL |
+
+**Phase 3 completion marker**: Last round of code-reviewer returns `[REVIEW_PASS]`, and loop record shows no remaining CRITICAL or HIGH issues.
 
 ---
 
@@ -127,7 +150,7 @@ Before fully ending, output the following table to verify all three Phases were 
 |-------|--------|----------|
 | **Phase 1: Plan-Doc** | ✅/❌ | User confirmation text + generated doc directory path |
 | **Phase 2: TDD** | ✅/❌ | tdd-guide agent call ID + final test pass count + coverage % |
-| **Phase 3: Review** | ✅/❌ | code-reviewer agent call ID + CRITICAL issues fixed count + other issues categorized |
+| **Phase 3: Review Loop** | ✅/❌ | Total rounds + CRITICAL/HIGH count per round + final [REVIEW_PASS] marker |
 
 **Acceptance criteria**:
 - If any item in the table is ❌, the command is considered **failed**
@@ -141,5 +164,6 @@ Before fully ending, output the following table to verify all three Phases were 
 Summarize:
 - What functionality was implemented / what problem was solved
 - Final test results (passed / total) + coverage %
-- Issues found in code review + number of items fixed
-- Whether there are remaining HIGH/MEDIUM issues to address
+- Code Review loop: total rounds, which CRITICAL/HIGH issues were fixed per round
+- Final status: [REVIEW_PASS], no remaining CRITICAL or HIGH issues
+- Remaining MEDIUM/LOW issues list (for future reference)
