@@ -1,27 +1,26 @@
 # /ecc:vite-patterns
 
-Vite 构建工具配置模式——涵盖插件、HMR、环境变量、代理、SSR 和构建优化。
+Vite 构建工具模式：配置、插件、HMR、环境变量与生产优化。
 
 ---
 
 ## 功能
 
-- 基础与条件配置模板，使用 defineConfig 获得类型推断
-- 核心插件选型指南（React SWC、Vue、vite-plugin-checker、SVGR 等）及反模式警告
-- 环境变量安全规则：VITE_ 前缀非安全边界，loadEnv 陷阱，Source Map 泄露风险
-- 性能优化：避免 barrel 文件、显式导入扩展名、预热热路径路由、构建分析
-- 常见陷阱：开发与构建行为差异、过时 chunk、Docker 绑定、Monorepo 文件访问等
+- vite.config.ts 配置与条件构建
+- 关键插件：TypeScript 类型检查、SVG 组件、PWA 等
+- 环境变量安全：VITE_ 前缀不是安全边界
+- 构建优化：manualChunks 分包、barrel file 避免
+- 库模式与 SSR 外部化配置
+- 常见陷阱：Docker 绑定、Monorepo 文件访问、过期 chunks
 
 ## 用法
 
-- `/ecc:vite-patterns` - 获取 Vite 项目配置、优化和故障排除指导
+- `/ecc:vite-patterns` - Vite 构建工具配置与优化参考
 
 ## 适用场景
 
-- 配置 vite.config.ts 或 vite.config.js
-- 设置环境变量和 API 代理
-- 优化构建输出（分块、压缩、资源）
-- 调试 HMR、开发服务器或构建错误
-- 使用 build.lib 发布 npm 包
+- 配置 Vite 项目（React/Vue/Svelte）
+- 排查 CJS/ESM 依赖预构建问题
+- 生产构建性能优化与分包
 
 > 源文件：[SKILL.md](SKILL.md)
