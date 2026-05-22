@@ -122,18 +122,30 @@ Phase 1: ...
 Phase 2: ...
 ...
 
+## Parallel groups analysis
+Independent (can run in parallel):
+  - Group A: [phase items with no shared files/interfaces]
+  - Group B: [phase items with no shared files/interfaces]
+Serial (must run after dependencies):
+  - Group C: [items that depend on A or B output]
+Note: If all items are interdependent, omit this ENTIRE section including the heading — do NOT write "N/A" or an empty list. TR/T pipelines treat absence of this section as signal to use serial mode.
+
 ## Upstream sources of truth (will NOT be modified)
 - <list of .cursor/rules/*.mdc, docs/guide/*使用规范.md, etc.>
 
 ## Waiting for confirmation
-Reply "yes" / "proceed" to enter the model-switch checkpoint, or "modify: ..." to adjust.
+Reply "yes" / "proceed" to start file generation (pipeline continues automatically after this).
+Append "wait for switch" to pause at model handoff for manual model change.
+Reply "modify: ..." to adjust the plan before generating.
 ```
 
 **DO NOT generate files until the user confirms.**
 
-### Stage 3.5. Model-switch checkpoint + WAIT for `继续`
+### Stage 3.5. Model-switch handoff (non-blocking by default)
 
-Immediately after the user replies `yes` / `proceed`, pause before file generation and create an explicit generation handoff.
+Immediately after the user replies `yes` / `proceed`, output the generation handoff and proceed to Stage 4 in the same turn — **do NOT wait for a separate `继续` reply**.
+
+Exception (opt-in slow path): if the Stage 3 confirmation text contains `wait for switch` / `先切模型` / `等切模型`, then pause after the handoff and wait for `继续` before continuing. Otherwise proceed automatically.
 
 1. Build a compact `Generation Handoff` block containing:
    - `task_slug`
@@ -157,8 +169,9 @@ Immediately after the user replies `yes` / `proceed`, pause before file generati
 3. Print the checkpoint in this exact shape:
 
 ```text
-## Model switch checkpoint
-已完成审计和写文档准备。下一步建议切换到 <haiku | sonnet> 再继续生成文档。
+## Generation Handoff (auto-continuing to Stage 4)
+建议生成模型: <haiku | sonnet>。如需切换模型，请下次调用前先切换；本次将使用当前模型继续生成。
+（在 Stage 3 确认时附加 "wait for switch" 可强制暂停等待手动切换。）
 
 ### Generation Handoff
 - task_slug: ...
@@ -172,33 +185,50 @@ Immediately after the user replies `yes` / `proceed`, pause before file generati
 - phase_list:
   - Phase 1: ...
   - Phase 2: ...
+- parallel_groups: (from Stage 3 analysis; null if all items interdependent)
+  - group: A / items: [...] / depends_on: []
+  - group: C / items: [...] / depends_on: [A]
 - doc_list:
   - README.md
   - 00-执行文档.md
   - ...
 - generation_risks:
   - ...
-
-切换完成后请输入：继续
 ```
 
-4. Stop after the checkpoint. Do NOT create files yet.
-5. Only continue when the user replies exactly `继续`.
-6. If the currently active model already matches the recommendation, still stop and require `继续` so there is a clean boundary between audit and generation.
-7. If the user changes the task after the checkpoint, go back to Stage 1 or Stage 2 as needed instead of blindly continuing.
+4. **Default (fast path)**: after printing the handoff, immediately proceed to Stage 4 in the same turn — no separate user reply needed.
+5. **Slow path (opt-in)**: only if Stage 3 confirmation contained `wait for switch` / `先切模型` / `等切模型`, append "切换完成后请输入：继续" and wait for that exact reply.
+6. If the user changes the task before Stage 4 completes, go back to Stage 1 or Stage 2 as needed.
 
 ### Stage 4. Generate
 
-Only after confirmation and the Stage 3.5 `继续` reply:
+Only after Stage 3 confirmation (Stage 3.5 wait is skipped in default fast path):
 
 1. Read the Stage 3.5 `Generation Handoff` block first and use it as the primary input for generation.
    - Do NOT repeat the full audit if the handoff already contains enough information.
-   - Only reread upstream sources when the handoff is missing details, the sources conflict, or the user changed the task after the checkpoint.
+   - Only reread upstream sources when the handoff is missing details, the sources conflict, or the user changed the task.
 2. Compute the target directory: `docs/plan/<task-slug>-<today-date>/` where `<today-date>` is the local date in `YYYY-MM-DD` format at generation time.
-   - Before creating, scan for existing directories matching `docs/plan/<task-slug>-*/` (same slug, any date). If one is found, ask the user: "已存在 `<found-dir>`，是续做（reuse）还是新任务（create new）？" Only create a new directory if the user chooses new task.
-   - Fail if the target directory already exists with content — ask before overwriting.
-3. Write the docs in this order: `README.md` → `00-执行文档.md` → `01` → `02` → `03` → (`04` → `05` if test)
-4. Cross-link documents (README links to all; `00` links to `01-03`; each numbered doc has prev/next links)
+   - Scan for existing directories matching `docs/plan/<task-slug>-*/` (same slug, any date). **Auto-decide**:
+     - Existing dir's date == today's date → **auto-reuse** (write into the same dir, treating as a continuation). Print one line: `已复用 <found-dir>（同日重生成）`.
+     - Existing dir's date != today's date → **auto-create new** dated dir. Print one line: `已创建 <new-dir>（旧任务保留在 <found-dir>，未修改）`.
+     - If target dir already exists with content matching today's date AND user explicitly wrote `force-new` in Stage 3 confirmation → create new with date suffix `-2`.
+   - Only ask the user when there is a destructive conflict (different content under exact same path).
+3. **Before writing `00-执行文档.md`**: translate the "Parallel groups analysis" from the Stage 3.5 `Generation Handoff` into a structured YAML array and embed it in the progress pointer under the `parallelizable_groups` key. The YAML format is:
+   ```yaml
+   parallelizable_groups:
+     - group: A
+       items: [P1.1, P1.2]
+       depends_on: []
+     - group: B
+       items: [P1.3]
+       depends_on: []
+     - group: C
+       items: [P1.4]
+       depends_on: [A]
+   ```
+   If the Stage 3 analysis was omitted (all items interdependent), set `parallelizable_groups: null`. Do NOT leave this field absent — TR/T pipelines require it to be present (even if null) to decide dispatch mode.
+4. Write the docs in this order: `README.md` → `00-执行文档.md` → `01` → `02` → `03` → (`04` → `05` if test)
+5. Cross-link documents (README links to all; `00` links to `01-03`; each numbered doc has prev/next links)
 
 ### Stage 5. Post-generation
 
@@ -241,6 +271,7 @@ This is the file that makes `plan-doc` different from a plain execution command 
    - `last_commit` (git hash or null)
    - `next_action` (one-line)
    - `blockers` (string array)
+   - `parallelizable_groups` (object array, nullable): each entry has `group` (string label), `items` (P<N>.<M> list), `depends_on` (group label array, empty = independent). Populated during plan-doc generation; used by TR/T pipelines to decide parallel dispatch.
 
 2. **Resume protocol** (mandatory reading for any AI entering the task):
    - Step 1: read progress pointer
@@ -281,55 +312,57 @@ Stack detection signals:
 - `pyproject.toml` / `requirements.txt` → Python
 - `pom.xml` / `build.gradle[.kts]` with `src/main/java` → Java
 
+The subagent plan embedded in `00-执行文档.md` must include a `Parallel Group` column so TR/T pipelines can dispatch agents in bulk. Use the group labels from the "Parallel groups analysis" section in Stage 3. Items with no group dependency share the same label and can be dispatched simultaneously; items with `depends_on` must wait for their dependencies.
+
 ### Flutter recommended subagents
 
-| Role                   | Recommended                                     |
-| ---------------------- | ----------------------------------------------- |
-| Coding                 | main-agent                                      |
-| Build fix              | `ecc:dart-build-resolver`                       |
-| Review                 | `ecc:flutter-reviewer`                          |
-| E2E test orchestration | `ecc:e2e-runner` (real-device tests stay human) |
+| Role                   | Recommended                                     | Parallel Group |
+| ---------------------- | ----------------------------------------------- | -------------- |
+| Coding                 | main-agent                                      | `<group label, e.g. A / B>` |
+| Build fix              | `ecc:dart-build-resolver`                       | serial — do not parallelize |
+| Review                 | `ecc:flutter-reviewer`                          | `<group label, e.g. A / B>` |
+| E2E test orchestration | `ecc:e2e-runner` (real-device tests stay human) | serial — do not parallelize |
 
 ### Android recommended subagents
 
-| Role        | Recommended                                              |
-| ----------- | -------------------------------------------------------- |
-| Coding      | main-agent                                               |
-| Build fix   | `ecc:kotlin-build-resolver` or `ecc:java-build-resolver` |
-| Review      | `ecc:kotlin-reviewer` or `ecc:java-reviewer`             |
+| Role        | Recommended                                              | Parallel Group |
+| ----------- | -------------------------------------------------------- | -------------- |
+| Coding      | main-agent                                               | `<group label, e.g. A / B>` |
+| Build fix   | `ecc:kotlin-build-resolver` or `ecc:java-build-resolver` | serial — do not parallelize |
+| Review      | `ecc:kotlin-reviewer` or `ecc:java-reviewer`             | `<group label, e.g. A / B>` |
 
 ### Web / Node / React
 
-| Role      | Recommended                |
-| --------- | -------------------------- |
-| Coding    | main-agent                 |
-| Build fix | `ecc:build-error-resolver` |
-| Review    | `ecc:typescript-reviewer`  |
-| E2E       | `ecc:e2e-runner`           |
+| Role      | Recommended                | Parallel Group |
+| --------- | -------------------------- | -------------- |
+| Coding    | main-agent                 | `<group label, e.g. A / B>` |
+| Build fix | `ecc:build-error-resolver` | serial — do not parallelize |
+| Review    | `ecc:typescript-reviewer`  | `<group label, e.g. A / B>` |
+| E2E       | `ecc:e2e-runner`           | serial — do not parallelize |
 
 ### Python
 
-| Role    | Recommended           |
-| ------- | --------------------- |
-| Coding  | main-agent            |
-| Review  | `ecc:python-reviewer` |
-| Testing | `ecc:tdd-guide`       |
+| Role    | Recommended           | Parallel Group |
+| ------- | --------------------- | -------------- |
+| Coding  | main-agent            | `<group label, e.g. A / B>` |
+| Review  | `ecc:python-reviewer` | `<group label, e.g. A / B>` |
+| Testing | `ecc:tdd-guide`       | `<group label, e.g. A / B>` |
 
 ### Java / Spring Boot
 
-| Role      | Recommended               |
-| --------- | ------------------------- |
-| Coding    | main-agent                |
-| Build fix | `ecc:java-build-resolver` |
-| Review    | `ecc:java-reviewer`       |
+| Role      | Recommended               | Parallel Group |
+| --------- | ------------------------- | -------------- |
+| Coding    | main-agent                | `<group label, e.g. A / B>` |
+| Build fix | `ecc:java-build-resolver` | serial — do not parallelize |
+| Review    | `ecc:java-reviewer`       | `<group label, e.g. A / B>` |
 
 ### Generic (unknown stack)
 
-| Role     | Recommended             |
-| -------- | ----------------------- |
-| Coding   | main-agent              |
-| Review   | `ecc:code-reviewer`     |
-| Security | `ecc:security-reviewer` |
+| Role     | Recommended             | Parallel Group |
+| -------- | ----------------------- | -------------- |
+| Coding   | main-agent              | `<group label, e.g. A / B>` |
+| Review   | `ecc:code-reviewer`     | `<group label, e.g. A / B>` |
+| Security | `ecc:security-reviewer` | serial — do not parallelize |
 
 Forbidden subagent uses (apply universally):
 
@@ -375,6 +408,7 @@ When in doubt:
 - Omitting the progress pointer anchors or using a different marker
 - Copying the original audit/report content verbatim into 01 (01 should synthesize decisions, not restate evidence)
 - Generating more than 7 files under `docs/plan/<task-slug>-<YYYY-MM-DD>/` — the fixed structure is the contract
+- Creating a separate `06-并行分组.md` file for the parallel groups analysis — it must be embedded in `00-执行文档.md` progress pointer as `parallelizable_groups` YAML, never as a standalone file
 - Modifying `.cursor/rules/*.mdc` or top-level `docs/guide/*使用规范.md` during generation
 - Omitting the date suffix from the directory name
 - Embedding a date inside the slug itself to work around the suffix rule (results in double-date)
