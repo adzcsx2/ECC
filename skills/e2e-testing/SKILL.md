@@ -105,7 +105,7 @@ test.describe('Item Search', () => {
     expect(count).toBeGreaterThan(0)
 
     await expect(itemsPage.itemCards.first()).toContainText(/test/i)
-    await page.screenshot({ path: 'artifacts/search-results.png' })
+    await page.screenshot({ path: 'images/screen/search-results.png' })
   })
 
   test('should handle no results', async ({ page }) => {
@@ -212,19 +212,25 @@ await page.locator('[data-testid="menu-item"]').click()
 
 ## Artifact Management
 
+CRITICAL: All screenshots, videos, and traces MUST be saved under `images/screen/` in the project root. Before running any test that captures artifacts, ensure the directory exists:
+
+```bash
+mkdir -p images/screen images/screen/videos
+```
+
 ### Screenshots
 
 ```typescript
-await page.screenshot({ path: 'artifacts/after-login.png' })
-await page.screenshot({ path: 'artifacts/full-page.png', fullPage: true })
-await page.locator('[data-testid="chart"]').screenshot({ path: 'artifacts/chart.png' })
+await page.screenshot({ path: 'images/screen/after-login.png' })
+await page.screenshot({ path: 'images/screen/full-page.png', fullPage: true })
+await page.locator('[data-testid="chart"]').screenshot({ path: 'images/screen/chart.png' })
 ```
 
 ### Traces
 
 ```typescript
 await browser.startTracing(page, {
-  path: 'artifacts/trace.json',
+  path: 'images/screen/trace.json',
   screenshots: true,
   snapshots: true,
 })
@@ -238,7 +244,7 @@ await browser.stopTracing()
 // In playwright.config.ts
 use: {
   video: 'retain-on-failure',
-  videosPath: 'artifacts/videos/'
+  videosPath: 'images/screen/videos/'
 }
 ```
 
@@ -287,14 +293,14 @@ jobs:
 ### test-name
 **File:** `tests/e2e/feature.spec.ts:45`
 **Error:** Expected element to be visible
-**Screenshot:** artifacts/failed.png
+**Screenshot:** images/screen/failed.png
 **Recommended Fix:** [description]
 
 ## Artifacts
 - HTML Report: playwright-report/index.html
-- Screenshots: artifacts/*.png
-- Videos: artifacts/videos/*.webm
-- Traces: artifacts/*.zip
+- Screenshots: images/screen/*.png
+- Videos: images/screen/videos/*.webm
+- Traces: images/screen/*.zip
 ```
 
 ## Wallet / Web3 Testing
