@@ -234,12 +234,18 @@ Serial mode — after the single tdd-guide agent returns:
 - [x] All tests passing
 - [x] Coverage metric >= 80%
 - [x] git log shows test files committed first
+- [x] **No fake-mock pass in integration tests**: first identify the integration test locations (candidates: `tests/integration/`, `test/integration/`, `integration_test/`, `__tests__/integration/`, files matching `*_integration_test.*`, `*.integration.test.*`, `*IntegrationTest.*`); then run `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|Mockito\.(mock|when)|gomock|MagicMock|mock\.patch|monkeypatch|stub\(" <hits>` on the resolved paths. If none of the candidates exist, require the tdd-guide agent to **explicitly state the project's actual integration test location** in its report — never accept "directory missing → spot check passed" as a gate result
+- [x] **Credential-absence policy compliant**: any skipped test must carry an explicit text reason (e.g. "DEEPSEEK_API_KEY not set") — silent skips and mock-and-pass substitutions are not allowed
+- [x] **RED authenticity**: the Phase 2 report must list the real failure reason for each test's initial RED state (business logic / connection error / auth error) — inserting a mock to turn RED into GREEN is not a valid transition
 
 Parallel mode — after ALL group agents return AND worktrees are merged:
 - [x] Every group agent reported all tests passing (aggregate: no group may have any failing test)
 - [x] Unified coverage on merged main branch >= 80% (main conversation runs stack coverage command via Bash: `flutter test --coverage` / `jest --coverage` / `pytest --cov` / `go test -cover` — once after merge, not per-group)
 - [x] All group merges completed without conflict
 - [x] Each group's worktree-internal git log shows test commits before implementation commits (merged main branch overall order not required)
+- [x] **No fake-mock pass in integration tests** (each group must pass the grep spot check; same standard as serial mode)
+- [x] **Credential-absence policy compliant** (each group's skips must carry explicit reasons; same standard as serial mode)
+- [x] **RED authenticity** (each group's Phase 2 report must list real RED failure reasons; same standard as serial mode)
 
 If any group's tests failed:
 - **Retry that group only**: discard the old worktree, cut a fresh one from current main branch, re-run tdd-guide (`isolation: "worktree"`). Other passing groups do not re-run.
