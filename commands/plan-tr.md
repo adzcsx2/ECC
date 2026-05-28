@@ -109,19 +109,64 @@ Group C（依赖 A）: [P1.5 - <真实任务名>]                     → 依赖
 
 **Worktree 合并 SOP**（仅并行模式）：
 
+> 同步说明：此段落逻辑在 `plan-tr.md`、`plan-t.md`、`plan-doc-tr.md` 中保持一致，修改时需同步三个文件（中文/中文/英文）。
+
+> ⚠ 并发限制：同一主仓库同一时刻只允许一个 Claude 进程执行此 SOP。多个 Claude 并发运行时，请确保合并操作串行进行，否则 `git checkout` / `git merge` 会产生竞态，仍可能导致数据丢失。如需自动序列化，可在步骤 2 前用 `flock` 对主仓库目录加文件锁。
+
 所有 tdd-guide agent 返回后，从每个 agent 的结果中提取：
 - `worktree_path` — 隔离 worktree 的目录
 - `branch_name` — 该 worktree 内创建的分支名
 
-按依赖顺序逐一合并（独立 group 先合并，依赖 group 后合并）：
+执行前在主对话中记录：
+- `<main-repo>` — Phase 1.5 启动**前**所在的主仓库根目录（worktree 的父目录，可用 `pwd` 记录）
+
+对每个 group 分支，按依赖顺序依次执行下方步骤 1–3（每次迭代替换 `worktree_path`、`branch_name`、`<标签>`）：
 
 ```bash
-# 对每个 group 分支依次执行：
-git merge --no-ff <branch_name> -m "merge: TDD Group <标签>"
-# 若有冲突：立即停止，将冲突文件列表报告给用户，禁止自动解决冲突。
+# ⚠ 执行前先将所有 <占位符> 替换为实际值；整个代码块须在单次 Bash 调用中执行
+set -e          # 任一命令失败立即中止，防止错误级联
+set -o pipefail # 管道中任一命令失败也触发 set -e
+# ── 步骤 1：合并前将 worktree 分支 rebase 到最新主分支 ──
+# 防止 worktree 基于旧基线，导致合并后静默覆盖他人已合入的改动
+cd "<worktree_path>"
+git fetch origin
+if ! git rebase origin/<main-branch>; then
+  echo "⚠ [BLOCKED] rebase 冲突，脚本已自动 abort。请到 <worktree_path> 手动 rebase 解决冲突后重新触发 SOP。"
+  git rebase --abort 2>/dev/null || true
+  exit 1
+fi
+
+# ── 步骤 2：切回主仓库，检查已跟踪文件的未提交改动，拉取最新 ──
+# 注意：仅检测已跟踪文件（untracked 文件不影响 checkout，不纳入检测以避免误报）
+cd "<main-repo>"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "⚠ [BLOCKED] 主仓库存在未提交的已跟踪文件改动，切换分支可能导致丢失。请先 commit 或 stash。"
+  git status --porcelain --untracked-files=no
+  exit 1
+fi
+git checkout <main-branch>
+git pull --ff-only origin <main-branch>
+
+# ── 步骤 3：dry-run 检测 merge 冲突及删除型 lost update ──
+if ! git merge --no-ff --no-commit "<branch_name>"; then
+  echo "⚠ [BLOCKED] merge 冲突，已中止。冲突文件如下（解决后重新触发 SOP）："
+  git diff --name-only --diff-filter=U
+  git merge --abort
+  exit 1
+fi
+DELETED=$(git diff --cached --diff-filter=D --name-only)
+if [ -n "$DELETED" ]; then
+  echo "⚠ [BLOCKED] 检测到以下文件将被删除，可能覆盖他人改动，已中止合并："
+  echo "$DELETED"
+  git merge --abort
+  exit 1
+fi
+git commit -m "merge: TDD Group <标签>"
 ```
 
-任何合并出现冲突时，阻塞 Phase 2 完成，向用户报告冲突文件列表，等待人工解决后再继续。
+任何步骤失败（rebase 冲突、未提交改动检测、merge 冲突、删除型 lost update 检测）时，阻塞 Phase 2 完成，向用户报告详情，等待人工处理后再继续。
+
+迭代规则：若某一 group 的步骤 1–3 有任一命令以非 0 退出，立即停止整个 SOP，不继续后续 group。已合并的 group 保留在主分支，未合并的 group worktree 保留待人工处理。
 
 **并行 worktree 预提示**（输出后立即继续，不等待用户回复）：
 

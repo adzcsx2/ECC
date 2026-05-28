@@ -131,19 +131,65 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 
 **Worktree Merge SOP** (parallel mode only):
 
+> Sync note: The bash logic in this section is identical across `plan-tr.md`, `plan-t.md`, and `plan-doc-tr.md`. Update all three files when making changes.
+
+> ⚠ Concurrency limit: Only one Claude process may execute this SOP against the same main repo at a time. When running multiple Claude instances in parallel, serialize the merge operations manually — concurrent `git checkout` / `git merge` calls race and can still cause data loss. To auto-serialize, wrap Step 2 onward with `flock` against the main repo directory.
+
 After all tdd-guide agents return, extract from each agent's result:
 - `worktree_path` — directory of the isolated worktree
 - `branch_name` — branch created inside that worktree
 
-Then merge each branch in dependency order (independent groups first, serial groups after):
+Before starting, record in the main conversation:
+- `<main-repo>` — the main repository root directory where the session started (parent of all worktrees; capture with `pwd` before Phase 1.5)
+
+For each group branch, in dependency order, run Steps 1–3 below (substitute `worktree_path`, `branch_name`, and `<label>` per iteration):
 
 ```bash
-# For each group branch in order:
-git merge --no-ff <branch_name> -m "merge: TDD Group <label>"
-# If conflict: stop, report the conflicting files to user, do NOT auto-resolve.
+# ⚠ Replace all <placeholders> with actual values before running; execute the entire block in a single Bash call
+set -e          # Exit immediately on any command failure — prevents error cascades
+set -o pipefail # Propagate pipe failures to set -e
+# ── Step 1: rebase worktree branch onto latest main before merging ──
+# Prevents worktree built on a stale baseline from silently overwriting
+# changes already merged by other agents or Claude instances.
+cd "<worktree_path>"
+git fetch origin
+if ! git rebase origin/<main-branch>; then
+  echo "⚠ [BLOCKED] Rebase conflict — aborted automatically. Fix the rebase in <worktree_path> manually and re-trigger SOP."
+  git rebase --abort 2>/dev/null || true
+  exit 1
+fi
+
+# ── Step 2: return to main repo, check tracked-file changes, pull latest ──
+# Only tracked files are checked (untracked files survive checkout safely; including them causes false positives).
+cd "<main-repo>"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "⚠ [BLOCKED] Main repo has uncommitted tracked-file changes — checkout may discard them. Commit or stash first."
+  git status --porcelain --untracked-files=no
+  exit 1
+fi
+git checkout <main-branch>
+git pull --ff-only origin <main-branch>
+
+# ── Step 3: dry-run merge — detect conflicts and deletion-type lost updates ──
+if ! git merge --no-ff --no-commit "<branch_name>"; then
+  echo "⚠ [BLOCKED] Merge conflict — aborted. Conflicting files (resolve then re-trigger SOP):"
+  git diff --name-only --diff-filter=U
+  git merge --abort
+  exit 1
+fi
+DELETED=$(git diff --cached --diff-filter=D --name-only)
+if [ -n "$DELETED" ]; then
+  echo "⚠ [BLOCKED] Files below would be deleted — possible lost update. Merge aborted:"
+  echo "$DELETED"
+  git merge --abort
+  exit 1
+fi
+git commit -m "merge: TDD Group <label>"
 ```
 
-If any merge produces a conflict, block Phase 2 completion, report to user with the conflicting file list, and ask for resolution before continuing.
+If any step fails (rebase conflict, uncommitted-change check, merge conflict, or deletion guard), block Phase 2 completion, report details to the user, and wait for manual resolution before continuing.
+
+Iteration rule: if any command in Steps 1–3 exits non-zero for a given group, stop the entire SOP immediately — do not proceed to subsequent groups. Groups already merged remain on the main branch; unmerged group worktrees are preserved for manual handling.
 
 Example parallel dispatch (single message, two tool calls):
 ```
