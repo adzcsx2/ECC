@@ -107,7 +107,25 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 
 **Pre-dispatch checks** (run before reading parallelizable_groups):
 1. Verify current directory is a git repository: `git rev-parse --is-inside-work-tree`. If not a git repo → fall back to serial mode silently.
-2. Read `parallelizable_groups` from the progress pointer in `00-执行文档.md`. If the field is absent (plan-doc generation skipped the YAML step on the older version) → fall back to serial mode and warn: "parallelizable_groups not found in progress pointer — running in serial mode. Re-generate plan-doc to enable parallel dispatch."
+2. Run the pre-check block below. The block echoes literal values that the main conversation must record and substitute into all subsequent bash commands as `<MAIN_REPO>` and `<MAIN_BRANCH>` placeholders (Bash tool calls are independent processes — shell variables do not persist between calls):
+   ```bash
+   # ⚠ This block's purpose is to echo literal values for the main conversation to record.
+   # Extract RECORDED_MAIN_REPO= and RECORDED_MAIN_BRANCH= from stdout.
+   # Replace <MAIN_REPO> and <MAIN_BRANCH> placeholders in all later bash blocks with these literals.
+   set -e
+   MAIN_REPO=$(git rev-parse --show-toplevel)
+   MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+   echo "RECORDED_MAIN_REPO=$MAIN_REPO"
+   echo "RECORDED_MAIN_BRANCH=$MAIN_BRANCH"
+
+   # Check for uncommitted tracked-file changes (stash and cherry-pick are NOT valid bypasses)
+   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+     echo "⚠ [BLOCKED] Main repo has uncommitted tracked changes. Commit first. git stash is NOT a valid bypass."
+     git status --porcelain --untracked-files=no
+   fi
+   # Main conversation contract: if stdout contains [BLOCKED], mark trigger gate item 3 as ❌ and use serial mode.
+   ```
+3. Read `parallelizable_groups` from the progress pointer in `00-执行文档.md`. If the field is absent (plan-doc generation skipped the YAML step on the older version) → fall back to serial mode and warn: "parallelizable_groups not found in progress pointer — running in serial mode. Re-generate plan-doc to enable parallel dispatch."
 
 - If `parallelizable_groups` is null or has only 1 group → **Serial mode**: single tdd-guide agent (default, see below).
 - If `parallelizable_groups` has 2+ independent groups → **Parallel mode**:
@@ -124,25 +142,39 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
   4. Wait for all independent group agents to complete.
   5. **Merge independent groups first** (Worktree Merge SOP, independent groups only), then refresh baseline:
      ```bash
-     git checkout <main-branch> && git pull
+     git checkout <MAIN_BRANCH> && git pull --ff-only origin <MAIN_BRANCH>
      ```
   6. For each dependent group, **cut a fresh worktree from the updated main branch**, launch tdd-guide serially, merge immediately after each completes before starting the next.
   7. Run a unified coverage check on the merged main branch.
 
 **Worktree Merge SOP** (parallel mode only):
 
-> Sync note: The bash logic in this section is identical across `plan-tr.md`, `plan-t.md`, and `plan-doc-tr.md`. Update all three files when making changes.
+> Sync note: The following four paragraphs are kept identical across `plan-tr.md`, `plan-t.md`, and `plan-doc-tr.md`; update all three files when making changes: ① Phase 1.5 pre-dispatch checks, ② Worktree Merge SOP (this section), ③ immediate worktree verification after agent returns, ④ Phase 3 parallel review prompts.
 
 > ⚠ Concurrency limit: Only one Claude process may execute this SOP against the same main repo at a time. When running multiple Claude instances in parallel, serialize the merge operations manually — concurrent `git checkout` / `git merge` calls race and can still cause data loss. To auto-serialize, wrap Step 2 onward with `flock` against the main repo directory.
 
-After all tdd-guide agents return, extract from each agent's result:
-- `worktree_path` — directory of the isolated worktree
-- `branch_name` — branch created inside that worktree
+After all tdd-guide agents return, **strictly extract from the last two lines** of each agent's final message:
+- `WORKTREE_PATH: <absolute-path>` — directory of the isolated worktree
+- `BRANCH_NAME: <branch-name>` — branch created inside that worktree
 
-Before starting, record in the main conversation:
-- `<main-repo>` — the main repository root directory where the session started (parent of all worktrees; capture with `pwd` before Phase 1.5)
+> ⚠ Extraction rule: match with regex `^WORKTREE_PATH: (.+)$` and `^BRANCH_NAME: (.+)$`. If either field is missing, **treat as agent failure** — stop the SOP immediately and report: "agent did not output worktree info; likely no commit was made and harness auto-cleaned the worktree. Manual intervention required." Do NOT guess the path.
 
-For each group branch, in dependency order, run Steps 1–3 below (substitute `worktree_path`, `branch_name`, and `<label>` per iteration):
+**Immediate worktree verification after each agent returns (run before SOP Steps 1–3)**:
+
+```bash
+# Replace <WORKTREE_PATH> with the literal path from WORKTREE_PATH: line,
+# replace <BRANCH_NAME> with the literal branch from BRANCH_NAME: line.
+[ -d "<WORKTREE_PATH>" ] || { echo "⚠ [FATAL] worktree directory missing: <WORKTREE_PATH>. Possible causes: agent made no commit / agent crashed / harness cleaned up. Check agent's full return content. Stop SOP."; exit 1; }
+git -C "<WORKTREE_PATH>" rev-parse "<BRANCH_NAME>" >/dev/null 2>&1 || { echo "⚠ [FATAL] branch not found: <BRANCH_NAME>. Stop SOP."; exit 1; }
+git -C "<WORKTREE_PATH>" log --oneline -1
+echo "✅ worktree verified: <WORKTREE_PATH> @ <BRANCH_NAME>"
+```
+
+Before starting, record the literal values echoed by the pre-dispatch check:
+- `<MAIN_REPO>` — literal path from the `RECORDED_MAIN_REPO=` line; substitute this into all subsequent bash blocks
+- `<MAIN_BRANCH>` — literal branch name from the `RECORDED_MAIN_BRANCH=` line; substitute this into all subsequent bash blocks
+
+For each group branch, in dependency order, run Steps 1–3 below (substitute `<WORKTREE_PATH>`, `<BRANCH_NAME>`, `<MAIN_REPO>`, `<MAIN_BRANCH>`, and `<label>` per iteration):
 
 ```bash
 # ⚠ Replace all <placeholders> with actual values before running; execute the entire block in a single Bash call
@@ -151,27 +183,28 @@ set -o pipefail # Propagate pipe failures to set -e
 # ── Step 1: rebase worktree branch onto latest main before merging ──
 # Prevents worktree built on a stale baseline from silently overwriting
 # changes already merged by other agents or Claude instances.
-cd "<worktree_path>"
+cd "<WORKTREE_PATH>"
 git fetch origin
-if ! git rebase origin/<main-branch>; then
-  echo "⚠ [BLOCKED] Rebase conflict — aborted automatically. Fix the rebase in <worktree_path> manually and re-trigger SOP."
+if ! git rebase origin/<MAIN_BRANCH>; then
+  echo "⚠ [BLOCKED] Rebase conflict — aborted automatically. Fix the rebase in <WORKTREE_PATH> manually and re-trigger SOP."
   git rebase --abort 2>/dev/null || true
   exit 1
 fi
 
 # ── Step 2: return to main repo, check tracked-file changes, pull latest ──
 # Only tracked files are checked (untracked files survive checkout safely; including them causes false positives).
-cd "<main-repo>"
+cd "<MAIN_REPO>"
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "⚠ [BLOCKED] Main repo has uncommitted tracked-file changes — checkout may discard them. Commit or stash first."
+  echo "⚠ [BLOCKED] Main repo has uncommitted tracked-file changes — checkout may discard them. Commit first."
+  echo "  git stash is NOT a valid bypass. git cherry-pick is NOT a valid substitute for merge."
   git status --porcelain --untracked-files=no
   exit 1
 fi
-git checkout <main-branch>
-git pull --ff-only origin <main-branch>
+git checkout <MAIN_BRANCH>
+git pull --ff-only origin <MAIN_BRANCH>
 
 # ── Step 3: dry-run merge — detect conflicts and deletion-type lost updates ──
-if ! git merge --no-ff --no-commit "<branch_name>"; then
+if ! git merge --no-ff --no-commit "<BRANCH_NAME>"; then
   echo "⚠ [BLOCKED] Merge conflict — aborted. Conflicting files (resolve then re-trigger SOP):"
   git diff --name-only --diff-filter=U
   git merge --abort
@@ -185,6 +218,8 @@ if [ -n "$DELETED" ]; then
   exit 1
 fi
 git commit -m "merge: TDD Group <label>"
+MERGE_COMMIT=$(git rev-parse HEAD)
+echo "RECORDED_MERGE_COMMIT_<label>=$MERGE_COMMIT"
 ```
 
 If any step fails (rebase conflict, uncommitted-change check, merge conflict, or deletion guard), block Phase 2 completion, report details to the user, and wait for manual resolution before continuing.
@@ -195,11 +230,19 @@ Example parallel dispatch (single message, two tool calls):
 ```
 Agent tool #1: subagent_type="tdd-guide", isolation="worktree"
   prompt: "Execute strict TDD for Group A items: [P1.1, P1.2, P1.3].
-           RED→GREEN→IMPROVE→REPEAT. 80% min coverage."
+           RED→GREEN→IMPROVE→REPEAT. 80% min coverage.
+           After completing all work, run git add -A && git commit (at least once).
+           Output the following as the last two lines of your final message (format is fixed — the parent conversation parses it):
+           WORKTREE_PATH: <absolute path of current worktree>
+           BRANCH_NAME: <current branch name>"
 
 Agent tool #2: subagent_type="tdd-guide", isolation="worktree"   ← same message
   prompt: "Execute strict TDD for Group B items: [P1.4, P1.5].
-           RED→GREEN→IMPROVE→REPEAT. 80% min coverage."
+           RED→GREEN→IMPROVE→REPEAT. 80% min coverage.
+           After completing all work, run git add -A && git commit (at least once).
+           Output the following as the last two lines of your final message (format is fixed — the parent conversation parses it):
+           WORKTREE_PATH: <absolute path of current worktree>
+           BRANCH_NAME: <current branch name>"
 ```
 
 **Execution** (serial mode / single group fallback):
@@ -295,20 +338,29 @@ If Phase 2 ran in parallel mode, each group has its own worktree with a distinct
 
 ```
 Agent tool #1: subagent_type="code-reviewer"
-  prompt: "In worktree-A directory, run `git diff main...HEAD --name-only` to get changed files.
+  prompt: "cd <WORKTREE_PATH_A> (Group A worktree absolute path).
+           First verify the directory exists: [ -d <WORKTREE_PATH_A> ] || exit 1
+           Run `git diff <MAIN_BRANCH>...HEAD --name-only` to get changed files.
            Review those files. CRITICAL/HIGH/MEDIUM/LOW.
            Fix CRITICAL and HIGH. Output [REVIEW_PASS] or [REVIEW_FAIL: ...]."
 
 Agent tool #2: subagent_type="code-reviewer"   ← same message
-  prompt: "In worktree-B directory, run `git diff main...HEAD --name-only` to get changed files.
+  prompt: "cd <WORKTREE_PATH_B> (Group B worktree absolute path).
+           First verify the directory exists: [ -d <WORKTREE_PATH_B> ] || exit 1
+           Run `git diff <MAIN_BRANCH>...HEAD --name-only` to get changed files.
            Review those files. CRITICAL/HIGH/MEDIUM/LOW.
            Fix CRITICAL and HIGH. Output [REVIEW_PASS] or [REVIEW_FAIL: ...]."
 ```
 
+> Note: `<WORKTREE_PATH_A>` etc. are the literal `WORKTREE_PATH` values verified in Phase 2 SOP; `<MAIN_BRANCH>` is the literal value recorded from the Phase 1.5 pre-dispatch check. If the worktree was cleaned by the harness after merging, the code-reviewer exits non-zero; the main conversation records "worktree cleaned" and falls back to the merge commit diff: `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only` (`<MERGE_COMMIT>` is the `RECORDED_MERGE_COMMIT_<label>` value echoed in Step 3).
+
 Collect all results. If any group returns `[REVIEW_FAIL]`:
-- **Retry that group only**: re-launch code-reviewer in that group's worktree directory, using `git diff main...HEAD --name-only` for file scope. Do NOT use `git diff HEAD` (would return empty if all changes are committed).
+- **Retry that group only**:
+  - If the worktree still exists: re-launch code-reviewer in that group's worktree directory.
+  - If the worktree was cleaned by the harness: launch code-reviewer in `<MAIN_REPO>`, using `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only` for file scope.
+  - Groups that already returned `[REVIEW_PASS]` do NOT re-run.
 - **Maximum 3 retry rounds per group**. After 3 failures, stop the loop, report remaining issues to user for manual decision.
-- Groups that already returned `[REVIEW_PASS]` do NOT re-run.
+- File scope for retries: worktree exists → `git diff <MAIN_BRANCH>...HEAD --name-only`; worktree cleaned → `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only`. Do NOT use `git diff HEAD`.
 
 **Each review round execution** (serial mode / single group):
 
