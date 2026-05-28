@@ -305,9 +305,21 @@ src/
     └── auth.spec.ts
 ```
 
-## Mocking External Services
+## Mocking Strategy
 
-### Supabase Mock
+**Rule**: The scope of mocking depends on the test type. Using mocks in the wrong test type produces tests that pass without validating real behavior.
+
+| Test Type | Mock Scope | What NOT to mock |
+|-----------|-----------|-----------------|
+| **Unit** | All external IO, SDKs, network calls | Nothing additional — isolate fully |
+| **Integration** | Only unrelated upstream dependencies | **Must NOT mock the target service/function being tested** |
+| **E2E** | None | Everything — exercise the full real stack |
+
+### Unit Test Mock Templates (unit tests only)
+
+Use these patterns when writing **unit tests** that need to isolate business logic from external services.
+
+#### Supabase Mock (unit tests)
 ```typescript
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -323,7 +335,7 @@ jest.mock('@/lib/supabase', () => ({
 }))
 ```
 
-### Redis Mock
+#### Redis Mock (unit tests)
 ```typescript
 jest.mock('@/lib/redis', () => ({
   searchMarketsByVector: jest.fn(() => Promise.resolve([
@@ -333,13 +345,78 @@ jest.mock('@/lib/redis', () => ({
 }))
 ```
 
-### OpenAI Mock
+#### OpenAI/DeepSeek Mock (unit tests)
 ```typescript
 jest.mock('@/lib/openai', () => ({
   generateEmbedding: jest.fn(() => Promise.resolve(
     new Array(1536).fill(0.1) // Mock 1536-dim embedding
   ))
 }))
+```
+
+### Integration Test Patterns (real calls required)
+
+Integration tests **must** hit the real endpoint. If credentials are missing, **skip with an explicit reason** — never mock-and-pass.
+
+#### Python / pytest — skip when credential absent
+```python
+import pytest, os
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+
+@pytest.mark.skipif(not DEEPSEEK_API_KEY, reason="DEEPSEEK_API_KEY not set — skipping live integration test")
+@pytest.mark.integration
+def test_deepseek_completion_real():
+    from myapp.llm import call_deepseek
+    result = call_deepseek("Hello, world")          # real HTTP call
+    assert result.status_code == 200
+    assert len(result.json()["choices"]) > 0        # real assertion on real response
+```
+
+#### TypeScript / Jest — skip when credential absent
+```typescript
+const hasKey = !!process.env.DEEPSEEK_API_KEY;
+
+(hasKey ? describe : describe.skip)('DeepSeek integration', () => {
+  it('returns a completion from the real API', async () => {
+    const result = await callDeepSeek('Hello, world');  // real HTTP call
+    expect(result.choices.length).toBeGreaterThan(0);
+  });
+});
+```
+
+#### Go — skip when credential absent
+```go
+func TestDeepSeekIntegration(t *testing.T) {
+    key := os.Getenv("DEEPSEEK_API_KEY")
+    if key == "" {
+        t.Skip("DEEPSEEK_API_KEY not set — skipping live integration test")
+    }
+    resp, err := CallDeepSeek("Hello, world")  // real HTTP call
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if len(resp.Choices) == 0 {
+        t.Fatal("expected at least one choice")
+    }
+}
+```
+
+#### Real failure must stay FAIL — never swallow errors
+```typescript
+// WRONG: hides a real connectivity or auth failure
+async function callDeepSeekSafe(prompt: string) {
+  try {
+    return await callDeepSeek(prompt);
+  } catch {
+    return { choices: [{ text: 'mock fallback' }] };  // DO NOT DO THIS in integration tests
+  }
+}
+
+// CORRECT: let the real error propagate — the test must fail
+async function callDeepSeekIntegration(prompt: string) {
+  return await callDeepSeek(prompt);  // throws on 401/5xx → test FAILS as expected
+}
 ```
 
 ## Test Coverage Verification
@@ -442,7 +519,7 @@ npm test && npm run lint
 2. **One Assert Per Test** - Focus on single behavior
 3. **Descriptive Test Names** - Explain what's tested
 4. **Arrange-Act-Assert** - Clear test structure
-5. **Mock External Dependencies** - Isolate unit tests
+5. **Mock External Dependencies in unit tests only** - Unit tests mock all external IO; integration tests must hit real endpoints or skip explicitly (never mock-and-pass)
 6. **Test Edge Cases** - Null, undefined, empty, large
 7. **Test Error Paths** - Not just happy paths
 8. **Keep Tests Fast** - Unit tests < 50ms each
