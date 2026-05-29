@@ -1,11 +1,12 @@
 ---
-description: "Plan-Doc + TDD + auto code review (full pipeline): generate task-scoped documentation set, then execute with strict TDD, then auto code review."
-argument-hint: "<task-slug> [test] e.g. /ecc:plan-doc-tr my-feature"
+description: 'Plan-Doc + TDD + auto code review (full pipeline): generate task-scoped documentation set, then execute with strict TDD, then auto code review.'
+argument-hint: '<task-slug> [test] e.g. /ecc:plan-doc-tr my-feature'
 ---
 
 # Plan-Doc-TR: Plan-Doc + TDD + Code Review (Full Pipeline)
 
 **Key constraint**: This command is a three-phase mandatory pipeline. All three Phases MUST be executed via real tool calls. Before outputting the final summary, it is NEVER allowed to:
+
 - Skip Phase 2 or Phase 3
 - Replace actual Agent/Skill tool calls with verbal declarations ("I've completed TDD/Review")
 - Write code directly in the main conversation context (all implementation must be done by the tdd-guide agent)
@@ -25,9 +26,11 @@ Scan: docs/plan/<task-slug>-*/00-执行文档.md
 ```
 
 **Case A — No docs found (first run)**:
+
 - Proceed normally: Phase 1 generates docs, Phase 2 executes TDD from scratch, Phase 3 reviews.
 
 **Case B — Docs found with a progress pointer**:
+
 1. Read the `<!-- progress-pointer:start -->` YAML block from `00-执行文档.md`.
 2. Print a resume summary:
    ```
@@ -62,6 +65,7 @@ Skill tool with skill: "ecc:plan-doc", args: $ARGUMENTS
 ```
 
 `ecc:plan-doc` will:
+
 1. Restate requirements
 2. Ask clarifying questions (only if critical info missing)
 3. Emit a generation plan and **wait for user confirmation** ("yes"/"proceed")
@@ -73,10 +77,13 @@ Skill tool with skill: "ecc:plan-doc", args: $ARGUMENTS
 **Phase 1 completion marker**: All documentation files generated under `docs/plan/<task-slug>-YYYY-MM-DD/`. Main conversation then proceeds directly to Phase 2 in the same turn.
 
 **Hard gate before Phase 2**: Before executing any TDD, verify:
+
 ```
 docs/plan/<task-slug>-*/00-执行文档.md  ← must exist and contain <!-- progress-pointer:start -->
 ```
+
 If this file is absent or the progress pointer block is missing, Phase 2 is **blocked**. Do NOT proceed. Return to Phase 1 and complete doc generation first. Output:
+
 ```
 [BLOCKED] 实施文档不存在或进度指针缺失。Phase 2 无法启动。
 请先完成 Phase 1 文档生成，确认 docs/plan/<task-slug>-*/00-执行文档.md 存在且包含进度指针块。
@@ -87,6 +94,7 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 ### === Phase 2 START: TDD Execution ===
 
 **Pre-flight verification (must complete)**:
+
 - [ ] Does `docs/plan/<task-slug>-*/00-执行文档.md` exist on disk? (**hard gate** — Phase 2 is blocked until YES)
 - [ ] Does it contain a `<!-- progress-pointer:start -->` block? (**hard gate** — Phase 2 is blocked until YES)
 - [ ] Is the progress pointer `current_phase_status` not `completed`? (if `completed`, output final summary and stop — do not re-execute)
@@ -94,11 +102,13 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 - If any item above is NO, stop and return to Phase 1. No separate "user confirmation to start TDD" is required — Phase 1 confirmation is the single gate for the whole pipeline.
 
 **Checkpoint resume in Phase 2**: After the pre-flight checks pass, read the progress pointer:
+
 - Identify the first **unchecked** checklist item (`- [ ]`) across all Phase checklists in `00-执行文档.md`.
 - Pass only the **remaining unchecked items** to the tdd-guide agent. Do NOT re-run items already marked `- [x]`.
 - If all items in a phase are already checked, skip that phase and advance the pointer to the next phase.
 
 **Three No's principle** (before Phase 2 starts):
+
 - No writing any source code directly in the main conversation
 - No making direct code modification decisions
 - No skipping tests and jumping directly to implementation
@@ -106,8 +116,10 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 **Parallel dispatch strategy (activate when plan items ≥ 3)**:
 
 **Pre-dispatch checks** (run before reading parallelizable_groups):
+
 1. Verify current directory is a git repository: `git rev-parse --is-inside-work-tree`. If not a git repo → fall back to serial mode silently.
 2. Run the pre-check block below. The block echoes literal values that the main conversation must record and substitute into all subsequent bash commands as `<MAIN_REPO>` and `<MAIN_BRANCH>` placeholders (Bash tool calls are independent processes — shell variables do not persist between calls):
+
    ```bash
    # ⚠ This block's purpose is to echo literal values for the main conversation to record.
    # Extract RECORDED_MAIN_REPO= and RECORDED_MAIN_BRANCH= from stdout.
@@ -125,6 +137,7 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
    fi
    # Main conversation contract: if stdout contains [BLOCKED], mark trigger gate item 3 as ❌ and use serial mode.
    ```
+
 3. Read `parallelizable_groups` from the progress pointer in `00-执行文档.md`. If the field is absent (plan-doc generation skipped the YAML step on the older version) → fall back to serial mode and warn: "parallelizable_groups not found in progress pointer — running in serial mode. Re-generate plan-doc to enable parallel dispatch."
 
 - If `parallelizable_groups` is null or has only 1 group → **Serial mode**: single tdd-guide agent (default, see below).
@@ -150,13 +163,14 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 
 **Review-pass Worktree Merge SOP** (parallel mode only; invoked by the Phase 3 merge queue):
 
-> Sync note: The following four paragraphs are kept identical across `plan-tr.md`, `plan-t.md`, and `plan-doc-tr.md`; update all three files when making changes: ① Phase 1.5 pre-dispatch checks, ② Worktree Merge SOP (this section), ③ immediate worktree verification after agent returns, ④ Phase 3 parallel review prompts.
+> Sync note: the shared review-before-merge sections (this Worktree Merge SOP plus the Phase 3 parallel review prompt) use `docs/command-templates/plan-worktree-review-merge.zh-CN.md` for Chinese and `docs/command-templates/plan-worktree-review-merge.en.md` for English as the canonical templates. Commands install as raw markdown, so runtime include syntax is not available; keep the prompt text inline and let `tests/commands/plan-pipeline-order.test.js` enforce sync. Plan-doc-specific resume and pre-dispatch logic stays local to this file.
 
 > ⚠ Concurrency limit: Only one Claude process may execute this SOP against the same main repo at a time. When running multiple Claude instances in parallel, serialize the merge operations manually — concurrent `git checkout` / `git merge` calls race and can still cause data loss. To auto-serialize, wrap Step 2 onward with `flock` against the main repo directory.
 
 > ⚠ Admission gate: only groups whose last review round explicitly outputs `[REVIEW_PASS]` may execute this SOP. Never merge an unreviewed worktree.
 
 After all tdd-guide agents return, **strictly extract from the last two lines** of each agent's final message:
+
 - `WORKTREE_PATH: <absolute-path>` — directory of the isolated worktree
 - `BRANCH_NAME: <branch-name>` — branch created inside that worktree
 
@@ -174,6 +188,7 @@ echo "✅ worktree verified: <WORKTREE_PATH> @ <BRANCH_NAME>"
 ```
 
 Before starting, record the literal values echoed by the pre-dispatch check:
+
 - `<MAIN_REPO>` — literal path from the `RECORDED_MAIN_REPO=` line; substitute this into all subsequent bash blocks
 - `<MAIN_BRANCH>` — literal branch name from the `RECORDED_MAIN_BRANCH=` line; substitute this into all subsequent bash blocks
 
@@ -230,6 +245,7 @@ If any step fails (rebase conflict, uncommitted-change check, merge conflict, or
 Iteration rule: if any command in Steps 1–3 exits non-zero for a given group, stop the entire SOP immediately — do not proceed to subsequent groups. Groups already merged remain on the main branch; unmerged group worktrees are preserved for manual handling.
 
 Example parallel dispatch (single message, two tool calls):
+
 ```
 Agent tool #1: subagent_type="tdd-guide", isolation="worktree"
   prompt: "Execute strict TDD for Group A items: [P1.1, P1.2, P1.3].
@@ -271,12 +287,14 @@ prompt: "Follow the plan in docs/plan/<task-slug>-*/00-执行文档.md and execu
 4. **REPEAT**: Loop through all plan items
 
 **Coverage requirements**:
+
 - General code: >=80%
 - Security-critical / financial logic: 100%
 
 **Phase 2 completion marker**:
 
 Serial mode — after the single tdd-guide agent returns:
+
 - [x] All tests passing
 - [x] Coverage metric >= 80%
 - [x] git log shows test files committed first
@@ -285,6 +303,7 @@ Serial mode — after the single tdd-guide agent returns:
 - [x] **RED authenticity**: the Phase 2 report must list the real failure reason for each test's initial RED state (business logic / connection error / auth error) — inserting a mock to turn RED into GREEN is not a valid transition
 
 Parallel mode — after ALL group agents return AND worktrees pass immediate verification:
+
 - [x] Every group agent reported all tests passing (aggregate: no group may have any failing test)
 - [x] Every group worktree passed the immediate directory / branch verification and is ready for Phase 3 review
 - [x] Each group's worktree-internal git log shows test commits before implementation commits (merged main branch overall order not required)
@@ -294,6 +313,7 @@ Parallel mode — after ALL group agents return AND worktrees pass immediate ver
 - [x] No group may execute the merge SOP before its last review round returns `[REVIEW_PASS]`
 
 If any group's tests failed:
+
 - **Retry that group only**: discard the old worktree, cut a fresh one from current main branch, re-run tdd-guide (`isolation: "worktree"`). Other passing groups do not re-run.
 - **Maximum 3 retry rounds**. After 3 failures, stop retrying, report failure reason and recommendations (split task / revise approach / fall back to manual). Do NOT continue auto-retrying after 3 rounds.
 - Do NOT mark Phase 2 complete while any group has failing tests.
@@ -305,11 +325,13 @@ If any group's tests failed:
 **Pre-flight verification (must complete)**:
 
 Serial mode:
+
 - [ ] Was the tdd-guide agent actually called?
 - [ ] All tests passing?
 - [ ] Coverage >= 80%?
 
 Parallel mode:
+
 - [ ] Was each group's tdd-guide agent actually called? (check per group in Agent tool call history)
 - [ ] Every group's tests all passing? (any group with failures → back to Phase 2 to retry that group)
 - [ ] Is each group's verified worktree still available for review? (if a worktree is cleaned before review, re-run that group from Phase 2; never merge it directly)
@@ -332,6 +354,7 @@ LOOP (per group):
 ```
 
 **Exit condition** (both must be met):
+
 - No CRITICAL issues (security vulnerabilities, hardcoded secrets, injection risks)
 - No HIGH issues (large functions >50 lines, deep nesting >4 levels, missing error handling)
 - MEDIUM / LOW issues are recorded (do not block exit)
@@ -359,6 +382,7 @@ Agent tool #2: subagent_type="code-reviewer"   ← same message
 > Note: `<WORKTREE_PATH_A>` etc. are the literal `WORKTREE_PATH` values verified immediately after Phase 2; `<MAIN_BRANCH>` is the literal value recorded from the Phase 1.5 pre-dispatch check. If a worktree is cleaned before review, treat that group as not reviewed: cut a fresh worktree from current main and re-run that group from Phase 2. **Do not** fall back to a merge-commit diff review.
 
 Collect all results. If any group returns `[REVIEW_FAIL]`:
+
 - **Retry that group only**:
   - If the worktree still exists: re-launch code-reviewer in that group's worktree directory.
   - If the worktree was cleaned by the harness: cut a fresh worktree from current main and re-run that group from Phase 2; the group must not merge before review completes.
@@ -378,6 +402,7 @@ Fix all CRITICAL and HIGH issues. After fixing, output: [REVIEW_PASS] if no CRIT
 ```
 
 **Code review coverage**:
+
 1. Run `git diff --name-only HEAD` to identify modified files
 2. Review file by file:
    - **CRITICAL**: Security vulnerabilities, hardcoded secrets, injection risks
@@ -404,6 +429,7 @@ Parallel mode — one sub-table per group, independently tracked:
 | B | #1 | ? | ? | ? | ? | PASS/FAIL |
 
 **Phase 3 completion marker**:
+
 - Serial: last code-reviewer returns `[REVIEW_PASS]`, loop record shows no CRITICAL/HIGH.
 - Parallel: **every group** in the loop record shows `[REVIEW_PASS]` in its last round, every review-pass group has merged successfully through the serial merge queue, and the post-merge unified coverage check on main is >= 80%. Phase 3 is NOT complete while any group still has an open `[REVIEW_FAIL]` or pending merge.
 
@@ -413,13 +439,14 @@ Parallel mode — one sub-table per group, independently tracked:
 
 Before fully ending, output the following table to verify all three Phases were correctly executed:
 
-| Phase | Status | Evidence |
-|-------|--------|----------|
-| **Phase 1: Plan-Doc** | ✅/❌ | User confirmation text + generated doc directory path |
-| **Phase 2: TDD** | ✅/❌ | tdd-guide agent call ID + final test pass count + coverage % |
-| **Phase 3: Review Loop** | ✅/❌ | Total rounds + CRITICAL/HIGH count per round + final [REVIEW_PASS] marker |
+| Phase                    | Status | Evidence                                                                  |
+| ------------------------ | ------ | ------------------------------------------------------------------------- |
+| **Phase 1: Plan-Doc**    | ✅/❌  | User confirmation text + generated doc directory path                     |
+| **Phase 2: TDD**         | ✅/❌  | tdd-guide agent call ID + final test pass count + coverage %              |
+| **Phase 3: Review Loop** | ✅/❌  | Total rounds + CRITICAL/HIGH count per round + final [REVIEW_PASS] marker |
 
 **Acceptance criteria**:
+
 - If any item in the table is ❌, the command is considered **failed**
 - All items must be ✅ before outputting the final summary
 - If there is a ❌, redo the corresponding Phase until it becomes ✅
@@ -429,6 +456,7 @@ Before fully ending, output the following table to verify all three Phases were 
 ## Final Summary (output only after all Phases are ✅)
 
 Summarize:
+
 - What functionality was implemented / what problem was solved
 - Final test results (passed / total) + coverage %
 - Code Review loop: total rounds, which CRITICAL/HIGH issues were fixed per round
