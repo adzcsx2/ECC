@@ -15,10 +15,10 @@
 | 命令 | 说明 | README |
 |---|---|---|
 | `/ecc:plan-r` | 规划 → 执行 → 代码审查 三阶段流水线 | [README](commands/plan-r/README.md) |
-| `/ecc:plan-t` | 规划 → TDD 自动执行 两阶段流水线 | [README](commands/plan-t/README.md) |
-| `/ecc:plan-tr` | 规划 → TDD → 代码审查 完整流水线 | [README](commands/plan-tr/README.md) |
+| `/ecc:plan-t` | 规划 → TDD → Review 通过后合并 的流水线 | [README](commands/plan-t/README.md) |
+| `/ecc:plan-tr` | 规划 → TDD → Review 通过后合并 的流水线 | [README](commands/plan-tr/README.md) |
 | `/ecc:plan-doc` | 生成任务级完整文档集 | [README](commands/plan-doc/README.md) |
-| `/ecc:plan-doc-tr` | 文档生成 → TDD → 代码审查 完整流水线 | [README](commands/plan-doc-tr/README.md) |
+| `/ecc:plan-doc-tr` | 文档生成 → TDD → Review 通过后合并 的流水线 | [README](commands/plan-doc-tr/README.md) |
 
 ### 安装优化
 
