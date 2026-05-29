@@ -28,7 +28,7 @@
 1. **Phase 1 — 规划**：调用 `/ecc:plan` 技能生成分步计划，等待用户确认
 2. **Phase 1.5 — 并行分组分析**：任务数 ≥3 且在 git 仓库中时，按文件依赖关系分组，独立任务并行调度到 worktree 执行
 3. **Phase 2 — TDD 执行**：调用 `tdd-guide` 子代理按分组执行 RED→GREEN→IMPROVE 循环，80% 最低覆盖率
-4. **Phase 3 — 代码审查闭环**：调用 `code-reviewer` 子代理审查所有变更，修复 CRITICAL/HIGH 问题后自动重跑审查，直到 `[REVIEW_PASS]`
+4. **Phase 3 — 代码审查闭环 + 串行合并**：调用 `code-reviewer` 子代理先在各自 worktree 中完成审查；只有返回 `[REVIEW_PASS]` 的分组才允许进入单线程 merge 队列
 
 ## 新增特性
 
