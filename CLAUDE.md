@@ -112,13 +112,19 @@ When syncing from upstream (`git pull upstream main`), you MUST:
 
 1. **Keep fork README files**: `README.md` and `README.zh-CN.md` must always be resolved with `--ours` (keep the fork's own version). These files are maintained independently for this fork.
 
-2. **Create a changelog**: create `docs/changelogs/changelog-YYYY-MM-DD-N.md` where `N` is an auto-incremented sequence number starting from 1 (check existing files in `docs/changelogs/` for the latest number). The changelog must document:
-   - Operation type (sync from upstream)
-   - Upstream commit summary (grouped by type: feat/fix/docs/chore)
-   - File change statistics
-   - Conflict resolution details (which files, what method, why)
-   - Key auto-merged files worth noting
+2. **Create a detailed changelog folder**: create `docs/changelogs/changelog-YYYY-MM-DD-N/` where `N` is an auto-incremented sequence number starting from 1 (check existing folders in `docs/changelogs/` for the latest number). The folder must contain:
+   - **`README.md`** — index page with:
+     - Operation type and overview (total commits, file change stats)
+     - Conflict resolution table (which files, what method, why)
+     - Links to all detailed sub-documents
+   - **`01-*.md`, `02-*.md`, ...`** — detailed documents grouped by logical category (e.g. new features, bug fixes, docs, chores). Each detailed doc must include:
+     - Commit SHA, title, author for each included commit
+     - **Before vs After** comparison: what the code/docs looked like before, what it looks like now
+     - Key file changes with descriptions
+     - Statistics (files changed, lines added/removed)
 
-3. **Report to user**: after sync, summarize in Chinese what upstream changed (new features, fixes, maintenance updates) and any conflicts encountered.
+3. **Update root README changelog section**: add a row to the "Changelog" table in both `README.md` and `README.zh-CN.md` with date, sequence number, link to the changelog folder, and a one-line summary. Keep the table showing only the **3 most recent** entries; older entries are accessible via the "View all changelogs →" link to `docs/changelogs/`.
 
-4. Apply these rules immediately, without waiting for user reminder.
+4. **Report to user**: after sync, summarize in Chinese what upstream changed (new features, fixes, maintenance updates) and any conflicts encountered.
+
+5. Apply these rules immediately, without waiting for user reminder.

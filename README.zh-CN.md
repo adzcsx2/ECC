@@ -35,6 +35,14 @@
 
 拉取上游更新同时保留本地改动 ，请参考 [docs/FORK-SYNC.md](docs/FORK-SYNC.md)。
 
+### Changelog
+
+最近的上游同步记录。[查看全部 changelog →](docs/changelogs/)
+
+| 日期 | 编号 | 说明 |
+|------|------|------|
+| 2026-05-29 | [1](docs/changelogs/changelog-2026-05-29-1/) | 同步上游：React 语言轨道、AURA 适配器、ECC 2.0 skill pack、social publisher、frontend a11y、Squish Memory MCP、hook 修复、德语本地化（+20 commits） |
+
 ---
 
 ## 原项目完整文档

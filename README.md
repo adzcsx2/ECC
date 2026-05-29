@@ -35,6 +35,14 @@ All commands install under the `/ecc:` namespace.
 
 See [docs/FORK-SYNC.md](docs/FORK-SYNC.md) for instructions on pulling upstream changes while keeping local modifications.
 
+### Changelog
+
+Recent upstream sync history. [View all changelogs →](docs/changelogs/)
+
+| Date | # | Description |
+|------|---|-------------|
+| 2026-05-29 | [1](docs/changelogs/changelog-2026-05-29-1/) | Sync upstream: React track, AURA adapter, ECC 2.0 skill pack, social publisher, frontend a11y, Squish Memory MCP, hook fixes, German i18n (+20 more) |
+
 ---
 
 ## 原项目完整文档
