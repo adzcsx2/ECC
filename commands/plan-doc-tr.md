@@ -163,7 +163,7 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
 
 **Review-pass Worktree Merge SOP** (parallel mode only; invoked by the Phase 3 merge queue):
 
-> Sync note: the shared review-before-merge sections (this Worktree Merge SOP plus the Phase 3 parallel review prompt) use `docs/command-templates/plan-worktree-review-merge.zh-CN.md` for Chinese and `docs/command-templates/plan-worktree-review-merge.en.md` for English as the canonical templates. Commands install as raw markdown, so runtime include syntax is not available; keep the prompt text inline and let `tests/commands/plan-pipeline-order.test.js` enforce sync. Plan-doc-specific resume and pre-dispatch logic stays local to this file.
+> Sync note: the shared review-before-merge sections (the Phase 2 dispatch/setup retry rule, this Worktree Merge SOP, and the Phase 3 parallel review prompt) use `docs/command-templates/plan-worktree-review-merge.zh-CN.md` for Chinese and `docs/command-templates/plan-worktree-review-merge.en.md` for English as the canonical templates. Commands install as raw markdown, so runtime include syntax is not available; keep the prompt text inline and let `tests/commands/plan-pipeline-order.test.js` enforce sync. Plan-doc-specific resume and pre-dispatch logic stays local to this file.
 
 > ⚠ Concurrency limit: Only one Claude process may execute this SOP against the same main repo at a time. When running multiple Claude instances in parallel, serialize the merge operations manually — concurrent `git checkout` / `git merge` calls race and can still cause data loss. To auto-serialize, wrap Step 2 onward with `flock` against the main repo directory.
 
@@ -186,6 +186,8 @@ git -C "<WORKTREE_PATH>" rev-parse "<BRANCH_NAME>" >/dev/null 2>&1 || { echo "�
 git -C "<WORKTREE_PATH>" log --oneline -1
 echo "✅ worktree verified: <WORKTREE_PATH> @ <BRANCH_NAME>"
 ```
+
+If the immediate verification above fails even though the agent **already emitted** `WORKTREE_PATH` / `BRANCH_NAME`, that is **not a dispatch failure**. Treat it as `worktree_lost_after_dispatch`: do not enter review or merge, cut a fresh worktree for that group from current main, and re-run that group from Phase 2. Groups that already passed immediate verification do not re-run. Limit this recovery path to 3 rounds **per group**; after that, mark the group as `worktree_recovery_failed`, block Phase 2 completion, allow already-running groups to continue, and prevent dependent groups and Phase 3 from starting. Report the last error to the user and suggest checking leftover worktrees, lock files such as `.git/config.lock`, or falling back to serial mode.
 
 Before starting, record the literal values echoed by the pre-dispatch check:
 
@@ -264,6 +266,17 @@ Agent tool #2: subagent_type="tdd-guide", isolation="worktree"   ← same messag
            BRANCH_NAME: <current branch name>"
 ```
 
+**Dispatch / setup failure handling** (only when that group has not actually started TDD yet):
+
+- If a group fails during worktree creation, branch creation, or agent startup, and it failed **before** emitting `WORKTREE_PATH` / `BRANCH_NAME` and **before** producing any RED-stage test result, treat it as a **dispatch / setup failure**, not a "test failure".
+- Common signals: `could not lock config file`, `failed to create worktree`, `unable to create branch`, `already exists`, and similar git/worktree initialization errors.
+- Handling rules:
+  1. **Retry only that group's dispatch / creation**, without re-running other groups that already started successfully.
+  2. If the runtime supports it, then after the initial attempt fails, retry that group in the **same turn** with up to 3 short backoff attempts (total attempts = 1 initial + 3 retries, for example 1s / 2s / 4s). If the runtime cannot wait, retry that group at the **next available turn immediately**, and **do not wait for the other groups to finish first**.
+  3. Groups that already started successfully keep running in parallel; do not downgrade the whole batch into "wait for the current group to finish first" just because one group's dispatch failed.
+  4. If the retry succeeds, that group counts as its **first real start**, beginning at RED→GREEN→IMPROVE. TDD failure counting starts at 0 for that group; dispatch retries do not consume the later 3-round test-failure retry budget.
+  5. After 3 dispatch retries, mark that group as `dispatch_blocked`. Phase 2 must not complete while any group is `dispatch_blocked`; already-running groups may continue, but dependent groups and Phase 3 must not start. Report the last error to the user and suggest checking `.git/config.lock`, leftover worktrees, or falling back to serial mode.
+
 **Execution** (serial mode / single group fallback):
 
 Call the `tdd-guide` subagent via Agent tool to execute according to the plan:
@@ -311,8 +324,9 @@ Parallel mode — after ALL group agents return AND worktrees pass immediate ver
 - [x] **Credential-absence policy compliant** (each group's skips must carry explicit reasons; same standard as serial mode)
 - [x] **RED authenticity** (each group's Phase 2 report must list real RED failure reasons; same standard as serial mode)
 - [x] No group may execute the merge SOP before its last review round returns `[REVIEW_PASS]`
+- [x] No group remains `dispatch_blocked` or `worktree_recovery_failed`; Phase 2 cannot complete while any group is in dispatch failure or worktree recovery failure state
 
-If any group's tests failed:
+If any group **already completed dispatch and actually entered TDD** and then its tests failed:
 
 - **Retry that group only**: discard the old worktree, cut a fresh one from current main branch, re-run tdd-guide (`isolation: "worktree"`). Other passing groups do not re-run.
 - **Maximum 3 retry rounds**. After 3 failures, stop retrying, report failure reason and recommendations (split task / revise approach / fall back to manual). Do NOT continue auto-retrying after 3 rounds.
