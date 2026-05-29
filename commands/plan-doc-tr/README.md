@@ -28,7 +28,7 @@
 1. **Phase 1 — 规划**：调用 `/ecc:plan` 生成计划，等待用户确认
 2. **Phase 2 — 文档生成**：在 `docs/plan/<task-slug>-YYYY-MM-DD/` 下生成完整文档集（同 `/ecc:plan-doc`）
 3. **Phase 3 — TDD 执行**：调用 `tdd-guide` 子代理执行严格 TDD，80% 最低覆盖率
-4. **Phase 4 — 代码审查闭环**：调用 `code-reviewer` 子代理审查所有变更，修复 CRITICAL/HIGH 问题后自动重跑审查，直到 `[REVIEW_PASS]`
+4. **Phase 4 — 代码审查闭环 + 串行合并**：调用 `code-reviewer` 子代理先在各自 worktree 中完成审查；只有返回 `[REVIEW_PASS]` 的分组才允许进入单线程 merge 队列
 
 ## 新增特性
 

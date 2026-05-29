@@ -139,19 +139,22 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
      ```
      The preview is printed for transparency; the parallel tdd-guide tool calls follow in the same turn. If the user wants to abort, they must interrupt and reply "stop" / "串行" before the next turn — there is no timed wait.
   3. Launch one `tdd-guide` Agent tool call per independent group in a **single message** (parallel), each with `isolation: "worktree"` and a prompt scoped to that group's items only.
-  4. Wait for all independent group agents to complete.
-  5. **Merge independent groups first** (Worktree Merge SOP, independent groups only), then refresh baseline:
+  4. Wait for all independent group agents to complete and finish immediate worktree verification.
+  5. Hand those verified groups to the Phase 3 review queue. **Only groups whose last review round outputs `[REVIEW_PASS]` may enter the serial merge queue.**
+  6. The serial merge queue processes one review-pass group at a time (Worktree Merge SOP, independent groups only), then refreshes the baseline:
      ```bash
      git checkout <MAIN_BRANCH> && git pull --ff-only origin <MAIN_BRANCH>
      ```
-  6. For each dependent group, **cut a fresh worktree from the updated main branch**, launch tdd-guide serially, merge immediately after each completes before starting the next.
-  7. Run a unified coverage check on the merged main branch.
+  7. For each dependent group, **cut a fresh worktree from the updated main branch**, run `tdd-guide`, then pass that group through the same Phase 3 review → merge gate before starting the next.
+  8. Run a unified coverage check on the merged main branch after all review-pass groups are merged.
 
-**Worktree Merge SOP** (parallel mode only):
+**Review-pass Worktree Merge SOP** (parallel mode only; invoked by the Phase 3 merge queue):
 
 > Sync note: The following four paragraphs are kept identical across `plan-tr.md`, `plan-t.md`, and `plan-doc-tr.md`; update all three files when making changes: ① Phase 1.5 pre-dispatch checks, ② Worktree Merge SOP (this section), ③ immediate worktree verification after agent returns, ④ Phase 3 parallel review prompts.
 
 > ⚠ Concurrency limit: Only one Claude process may execute this SOP against the same main repo at a time. When running multiple Claude instances in parallel, serialize the merge operations manually — concurrent `git checkout` / `git merge` calls race and can still cause data loss. To auto-serialize, wrap Step 2 onward with `flock` against the main repo directory.
+
+> ⚠ Admission gate: only groups whose last review round explicitly outputs `[REVIEW_PASS]` may execute this SOP. Never merge an unreviewed worktree.
 
 After all tdd-guide agents return, **strictly extract from the last two lines** of each agent's final message:
 - `WORKTREE_PATH: <absolute-path>` — directory of the isolated worktree
@@ -222,7 +225,7 @@ MERGE_COMMIT=$(git rev-parse HEAD)
 echo "RECORDED_MERGE_COMMIT_<label>=$MERGE_COMMIT"
 ```
 
-If any step fails (rebase conflict, uncommitted-change check, merge conflict, or deletion guard), block Phase 2 completion, report details to the user, and wait for manual resolution before continuing.
+If any step fails (rebase conflict, uncommitted-change check, merge conflict, or deletion guard), block the current group's merge, stop the merge queue, report details to the user, and wait for manual resolution before continuing.
 
 Iteration rule: if any command in Steps 1–3 exits non-zero for a given group, stop the entire SOP immediately — do not proceed to subsequent groups. Groups already merged remain on the main branch; unmerged group worktrees are preserved for manual handling.
 
@@ -281,14 +284,14 @@ Serial mode — after the single tdd-guide agent returns:
 - [x] **Credential-absence policy compliant**: any skipped test must carry an explicit text reason (e.g. "DEEPSEEK_API_KEY not set") — silent skips and mock-and-pass substitutions are not allowed
 - [x] **RED authenticity**: the Phase 2 report must list the real failure reason for each test's initial RED state (business logic / connection error / auth error) — inserting a mock to turn RED into GREEN is not a valid transition
 
-Parallel mode — after ALL group agents return AND worktrees are merged:
+Parallel mode — after ALL group agents return AND worktrees pass immediate verification:
 - [x] Every group agent reported all tests passing (aggregate: no group may have any failing test)
-- [x] Unified coverage on merged main branch >= 80% (main conversation runs stack coverage command via Bash: `flutter test --coverage` / `jest --coverage` / `pytest --cov` / `go test -cover` — once after merge, not per-group)
-- [x] All group merges completed without conflict
+- [x] Every group worktree passed the immediate directory / branch verification and is ready for Phase 3 review
 - [x] Each group's worktree-internal git log shows test commits before implementation commits (merged main branch overall order not required)
 - [x] **No fake-mock pass in integration tests** (each group must pass the grep spot check; same standard as serial mode)
 - [x] **Credential-absence policy compliant** (each group's skips must carry explicit reasons; same standard as serial mode)
 - [x] **RED authenticity** (each group's Phase 2 report must list real RED failure reasons; same standard as serial mode)
+- [x] No group may execute the merge SOP before its last review round returns `[REVIEW_PASS]`
 
 If any group's tests failed:
 - **Retry that group only**: discard the old worktree, cut a fresh one from current main branch, re-run tdd-guide (`isolation: "worktree"`). Other passing groups do not re-run.
@@ -309,22 +312,23 @@ Serial mode:
 Parallel mode:
 - [ ] Was each group's tdd-guide agent actually called? (check per group in Agent tool call history)
 - [ ] Every group's tests all passing? (any group with failures → back to Phase 2 to retry that group)
-- [ ] Unified coverage on merged main branch >= 80%? (Bash run result)
-- [ ] All group worktrees merged to main branch?
+- [ ] Is each group's verified worktree still available for review? (if a worktree is cleaned before review, re-run that group from Phase 2; never merge it directly)
 
 If any item is NO, stop and go back to Phase 2 for the relevant group/issue.
 
 **Code Review closed-loop mechanism** (must follow this loop until exit condition is met):
 
 ```
-LOOP:
-  1. Call code-reviewer agent to perform review
-  2. Collect review report
+LOOP (per group):
+  1. Call code-reviewer inside that group's worktree
+  2. Collect the review report
   3. If CRITICAL or HIGH issues exist:
-       → Call code-reviewer agent to fix them
-       → After fix, go back to step 1 (review again)
-  4. If no CRITICAL and no HIGH issues:
-       → Exit loop, Phase 3 complete
+    → Call code-reviewer again to fix them in the same worktree
+    → After fixing, go back to step 1 (review again)
+  4. If the group returns [REVIEW_PASS]:
+    → Place that group into the serial merge queue
+    → The merge queue acquires an exclusive lock and runs the Worktree Merge SOP for that group only
+  5. Mark the group complete only after the merge succeeds; if merge fails, stop the queue and wait for manual handling
 ```
 
 **Exit condition** (both must be met):
@@ -334,7 +338,7 @@ LOOP:
 
 **Parallel review (when parallel mode was used in Phase 2)**:
 
-If Phase 2 ran in parallel mode, each group has its own worktree with a distinct changed-file set. Launch one `code-reviewer` agent per group in a single message (parallel):
+If Phase 2 ran in parallel mode, each group has its own verified worktree with a distinct changed-file set. **Each group must finish review before any merge happens for that group.** Launch one `code-reviewer` agent per group in a single message (parallel):
 
 ```
 Agent tool #1: subagent_type="code-reviewer"
@@ -352,15 +356,16 @@ Agent tool #2: subagent_type="code-reviewer"   ← same message
            Fix CRITICAL and HIGH. Output [REVIEW_PASS] or [REVIEW_FAIL: ...]."
 ```
 
-> Note: `<WORKTREE_PATH_A>` etc. are the literal `WORKTREE_PATH` values verified in Phase 2 SOP; `<MAIN_BRANCH>` is the literal value recorded from the Phase 1.5 pre-dispatch check. If the worktree was cleaned by the harness after merging, the code-reviewer exits non-zero; the main conversation records "worktree cleaned" and falls back to the merge commit diff: `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only` (`<MERGE_COMMIT>` is the `RECORDED_MERGE_COMMIT_<label>` value echoed in Step 3).
+> Note: `<WORKTREE_PATH_A>` etc. are the literal `WORKTREE_PATH` values verified immediately after Phase 2; `<MAIN_BRANCH>` is the literal value recorded from the Phase 1.5 pre-dispatch check. If a worktree is cleaned before review, treat that group as not reviewed: cut a fresh worktree from current main and re-run that group from Phase 2. **Do not** fall back to a merge-commit diff review.
 
 Collect all results. If any group returns `[REVIEW_FAIL]`:
 - **Retry that group only**:
   - If the worktree still exists: re-launch code-reviewer in that group's worktree directory.
-  - If the worktree was cleaned by the harness: launch code-reviewer in `<MAIN_REPO>`, using `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only` for file scope.
+  - If the worktree was cleaned by the harness: cut a fresh worktree from current main and re-run that group from Phase 2; the group must not merge before review completes.
   - Groups that already returned `[REVIEW_PASS]` do NOT re-run.
 - **Maximum 3 retry rounds per group**. After 3 failures, stop the loop, report remaining issues to user for manual decision.
-- File scope for retries: worktree exists → `git diff <MAIN_BRANCH>...HEAD --name-only`; worktree cleaned → `git diff <MERGE_COMMIT>^..<MERGE_COMMIT> --name-only`. Do NOT use `git diff HEAD`.
+- When a group returns `[REVIEW_PASS]`, add it to the serial merge queue. The queue merges one group at a time under a lock.
+- File scope for retries: worktree exists → `git diff <MAIN_BRANCH>...HEAD --name-only`. Do NOT use merge-commit diffs or `git diff HEAD`.
 
 **Each review round execution** (serial mode / single group):
 
@@ -400,7 +405,7 @@ Parallel mode — one sub-table per group, independently tracked:
 
 **Phase 3 completion marker**:
 - Serial: last code-reviewer returns `[REVIEW_PASS]`, loop record shows no CRITICAL/HIGH.
-- Parallel: **every group** in the loop record shows `[REVIEW_PASS]` in its last round. Phase 3 is NOT complete while any group still has an open `[REVIEW_FAIL]`.
+- Parallel: **every group** in the loop record shows `[REVIEW_PASS]` in its last round, every review-pass group has merged successfully through the serial merge queue, and the post-merge unified coverage check on main is >= 80%. Phase 3 is NOT complete while any group still has an open `[REVIEW_FAIL]` or pending merge.
 
 ---
 
