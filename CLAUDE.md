@@ -123,8 +123,10 @@ When syncing from upstream (`git pull upstream main`), you MUST:
      - Key file changes with descriptions
      - Statistics (files changed, lines added/removed)
 
-3. **Update root README changelog section**: add a row to the "Changelog" table in both `README.md` and `README.zh-CN.md` with date, sequence number, link to the changelog folder, and a one-line summary. Keep the table showing only the **3 most recent** entries; older entries are accessible via the "View all changelogs →" link to `docs/changelogs/`.
+3. **Update changelog index**: add a row to `docs/changelogs/README.md` with the new changelog number, date, link, and summary.
 
-4. **Report to user**: after sync, summarize in Chinese what upstream changed (new features, fixes, maintenance updates) and any conflicts encountered.
+4. **Update root README changelog section**: add a row to the "Changelog" table in both `README.md` and `README.zh-CN.md` with date, sequence number, link to the changelog folder, and a one-line summary. Keep the table showing only the **3 most recent** entries; remove older rows from the table (they remain accessible via the "View all changelogs →" link to `docs/changelogs/`).
 
-5. Apply these rules immediately, without waiting for user reminder.
+5. **Report to user**: after sync, summarize in Chinese what upstream changed (new features, fixes, maintenance updates) and any conflicts encountered.
+
+6. Apply these rules immediately, without waiting for user reminder.
