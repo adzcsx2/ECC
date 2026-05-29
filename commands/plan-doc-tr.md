@@ -130,19 +130,22 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
    echo "RECORDED_MAIN_REPO=$MAIN_REPO"
    echo "RECORDED_MAIN_BRANCH=$MAIN_BRANCH"
 
-   # Check for uncommitted tracked-file changes (stash and cherry-pick are NOT valid bypasses)
+   # Check for uncommitted tracked-file changes. This is now a warning for dispatch only:
+   # parallel worktrees still cut from HEAD, so local tracked edits are excluded from the worktree baseline,
+   # and the merge queue remains hard-blocked until the main repo is clean.
    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-     echo "⚠ [BLOCKED] Main repo has uncommitted tracked changes. Commit first. git stash is NOT a valid bypass."
+     echo "⚠ [WARN] Main repo has uncommitted tracked changes. Parallel dispatch may continue, but new worktrees are cut from current HEAD and exclude those local tracked edits."
+     echo "  If the task depends on those local edits, commit them first; otherwise the merge queue will still block until the main repo is clean."
      git status --porcelain --untracked-files=no
    fi
-   # Main conversation contract: if stdout contains [BLOCKED], mark trigger gate item 3 as ❌ and use serial mode.
+   # Main conversation contract: this check emits [WARN] only; it no longer forces serial mode by itself.
    ```
 
 3. Read `parallelizable_groups` from the progress pointer in `00-执行文档.md`. If the field is absent (plan-doc generation skipped the YAML step on the older version) → fall back to serial mode and warn: "parallelizable_groups not found in progress pointer — running in serial mode. Re-generate plan-doc to enable parallel dispatch."
 
-- If `parallelizable_groups` is null or has only 1 group → **Serial mode**: single tdd-guide agent (default, see below).
-- If `parallelizable_groups` has 2+ independent groups → **Parallel mode**:
-  1. Identify all groups with empty `depends_on` (independent). Cap at **3 groups max** in a single parallel batch; queue the rest as serial.
+If `parallelizable_groups` is null or has only 1 group → **Serial mode**: single tdd-guide agent (default, see below).
+If `parallelizable_groups` has 2+ groups that can become ready → **Parallel mode**:
+  1. Build a **ready queue** from groups whose `depends_on` are already satisfied. At startup, this means all groups with empty `depends_on`. Maintain at most **3 active TDD slots** at a time.
   2. **Print the group preview, then dispatch immediately in the same turn** (no separate user confirmation; output below is informational only):
      ```
      Parallel groups detected — dispatching now:
@@ -151,15 +154,16 @@ If this file is absent or the progress pointer block is missing, Phase 2 is **bl
        Group C: [P1.4] — depends on A (will run after A merges)
      ```
      The preview is printed for transparency; the parallel tdd-guide tool calls follow in the same turn. If the user wants to abort, they must interrupt and reply "stop" / "串行" before the next turn — there is no timed wait.
-  3. Launch one `tdd-guide` Agent tool call per independent group in a **single message** (parallel), each with `isolation: "worktree"` and a prompt scoped to that group's items only.
-  4. Wait for all independent group agents to complete and finish immediate worktree verification.
-  5. Hand those verified groups to the Phase 3 review queue. **Only groups whose last review round outputs `[REVIEW_PASS]` may enter the serial merge queue.**
-  6. The serial merge queue processes one review-pass group at a time (Worktree Merge SOP, independent groups only), then refreshes the baseline:
+    3. Fill every free slot by launching one `tdd-guide` Agent tool call for the next ready group, each with `isolation: "worktree"` and a prompt scoped to that group's items only.
+    4. **Do not wait for the current batch to drain before dispatching the next ready group.** As soon as any active group finishes Phase 2 and passes immediate worktree verification, hand that group to the Phase 3 review queue and immediately refill the freed TDD slot with the next ready group, if one exists.
+    5. The Phase 3 review queue reviews finished groups against `git diff <MAIN_BRANCH>...HEAD --name-only`. **Only groups whose last review round outputs `[REVIEW_PASS]` may enter the serial merge queue.**
+    6. The serial merge queue processes one review-pass group at a time (Worktree Merge SOP only), then refreshes the baseline:
      ```bash
      git checkout <MAIN_BRANCH> && git pull --ff-only origin <MAIN_BRANCH>
      ```
-  7. For each dependent group, **cut a fresh worktree from the updated main branch**, run `tdd-guide`, then pass that group through the same Phase 3 review → merge gate before starting the next.
-  8. Run a unified coverage check on the merged main branch after all review-pass groups are merged.
+    7. When a merge completes, mark downstream dependencies as satisfied. Any newly-ready dependent group enters the ready queue, and if a TDD slot is free it should be dispatched immediately from the updated main branch; otherwise it waits in the queue.
+    8. Goal: keep the active TDD slots full whenever a ready group exists. Independent groups may overlap with review / merge of already-finished groups, but merges remain serial.
+    9. Run a unified coverage check on the merged main branch after all review-pass groups are merged.
 
 **Review-pass Worktree Merge SOP** (parallel mode only; invoked by the Phase 3 merge queue):
 
@@ -315,7 +319,7 @@ Serial mode — after the single tdd-guide agent returns:
 - [x] **Credential-absence policy compliant**: any skipped test must carry an explicit text reason (e.g. "DEEPSEEK_API_KEY not set") — silent skips and mock-and-pass substitutions are not allowed
 - [x] **RED authenticity**: the Phase 2 report must list the real failure reason for each test's initial RED state (business logic / connection error / auth error) — inserting a mock to turn RED into GREEN is not a valid transition
 
-Parallel mode — after ALL group agents return AND worktrees pass immediate verification:
+Parallel mode — after all groups, including those that entered the ready queue during execution, have been dispatched, returned, and passed immediate verification:
 
 - [x] Every group agent reported all tests passing (aggregate: no group may have any failing test)
 - [x] Every group worktree passed the immediate directory / branch verification and is ready for Phase 3 review

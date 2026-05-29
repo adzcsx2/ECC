@@ -130,6 +130,104 @@ test('parallel mode no longer requires all worktrees merged before review starts
   );
 });
 
+test('dirty main repo warns but does not force serial dispatch', () => {
+  const planT = read(commandFiles.planT);
+  const planTr = read(commandFiles.planTr);
+  const planDocTr = read(commandFiles.planDocTr);
+
+  assert.ok(
+    planT.includes('⚠ [WARN] 主仓库存在未提交的已跟踪文件改动。并发 dispatch 仍可继续') &&
+      !planT.includes('请先 commit 再启动并行模式。'),
+    'Expected plan-t to warn instead of forcing serial mode on dirty main repo during dispatch',
+  );
+  assert.ok(
+    planTr.includes('⚠ [WARN] 主仓库存在未提交的已跟踪文件改动。并发 dispatch 仍可继续') &&
+      !planTr.includes('请先 commit 再启动并行模式。'),
+    'Expected plan-tr to warn instead of forcing serial mode on dirty main repo during dispatch',
+  );
+  assert.ok(
+    planDocTr.includes('⚠ [WARN] Main repo has uncommitted tracked changes. Parallel dispatch may continue') &&
+      !planDocTr.includes('mark trigger gate item 3 as ❌ and use serial mode'),
+    'Expected plan-doc-tr to warn instead of forcing serial mode on dirty main repo during dispatch',
+  );
+});
+
+test('parallel mode uses a refillable ready queue instead of waiting for the whole initial batch', () => {
+  const planT = read(commandFiles.planT);
+  const planTr = read(commandFiles.planTr);
+  const planDocTr = read(commandFiles.planDocTr);
+
+  assert.ok(
+    planT.includes('ready queue') && planT.includes('不得等待当前批次全部完成后再发下一批'),
+    'Expected plan-t to use a refillable ready queue for sustained concurrency',
+  );
+  assert.ok(
+    planTr.includes('ready queue') && planTr.includes('不得等待当前批次全部完成后再发下一批'),
+    'Expected plan-tr to use a refillable ready queue for sustained concurrency',
+  );
+  assert.ok(
+    planDocTr.includes('ready queue') && planDocTr.includes('Do not wait for the current batch to drain before dispatching the next ready group'),
+    'Expected plan-doc-tr to use a refillable ready queue for sustained concurrency',
+  );
+});
+
+test('parallel mode reviews per-group diff before merge', () => {
+  const planT = read(commandFiles.planT);
+  const planTr = read(commandFiles.planTr);
+  const planDocTr = read(commandFiles.planDocTr);
+
+  assert.ok(
+    planT.includes('Phase 3 review 只审查该 group 的 `git diff <MAIN_BRANCH>...HEAD --name-only` 变更'),
+    'Expected plan-t to review per-group diff before merge',
+  );
+  assert.ok(
+    planTr.includes('Phase 3 review 只审查该 group 的 `git diff <MAIN_BRANCH>...HEAD --name-only` 变更'),
+    'Expected plan-tr to review per-group diff before merge',
+  );
+  assert.ok(
+    planDocTr.includes('The Phase 3 review queue reviews finished groups against `git diff <MAIN_BRANCH>...HEAD --name-only`'),
+    'Expected plan-doc-tr to review per-group diff before merge',
+  );
+});
+
+test('merge SOP has an explicit REVIEW_PASS admission gate', () => {
+  const planT = read(commandFiles.planT);
+  const planTr = read(commandFiles.planTr);
+  const planDocTr = read(commandFiles.planDocTr);
+
+  assert.ok(
+    planT.includes('⚠ 准入门：只有最后一轮 review 明确输出 `[REVIEW_PASS]` 的 group 才允许执行此 SOP'),
+    'Expected plan-t merge SOP to require REVIEW_PASS before merge',
+  );
+  assert.ok(
+    planTr.includes('⚠ 准入门：只有最后一轮 review 明确输出 `[REVIEW_PASS]` 的 group 才允许执行此 SOP'),
+    'Expected plan-tr merge SOP to require REVIEW_PASS before merge',
+  );
+  assert.ok(
+    planDocTr.includes('⚠ Admission gate: only groups whose last review round explicitly outputs `[REVIEW_PASS]` may execute this SOP'),
+    'Expected plan-doc-tr merge SOP to require REVIEW_PASS before merge',
+  );
+});
+
+test('dependent groups enter the ready queue after upstream merges complete', () => {
+  const planT = read(commandFiles.planT);
+  const planTr = read(commandFiles.planTr);
+  const planDocTr = read(commandFiles.planDocTr);
+
+  assert.ok(
+    planT.includes('某 group merge 成功后，若其完成使其他依赖 group 的 `depends_on` 全部满足，则将这些 group 加入 ready queue'),
+    'Expected plan-t to describe dependency resolution into the ready queue',
+  );
+  assert.ok(
+    planTr.includes('某 group merge 成功后，若其完成使其他依赖 group 的 `depends_on` 全部满足，则将这些 group 加入 ready queue'),
+    'Expected plan-tr to describe dependency resolution into the ready queue',
+  );
+  assert.ok(
+    planDocTr.includes('When a merge completes, mark downstream dependencies as satisfied. Any newly-ready dependent group enters the ready queue'),
+    'Expected plan-doc-tr to describe dependency resolution into the ready queue',
+  );
+});
+
 test('dispatch/setup failures are retried immediately without waiting for the whole batch', () => {
   const planT = read(commandFiles.planT);
   const planTr = read(commandFiles.planTr);
