@@ -105,3 +105,20 @@ Whenever you add or modify any command, skill, agent, or install behavior in thi
 4. **Do NOT modify** the other-language READMEs under `docs/` — those are upstream originals.
 
 5. Apply these rules immediately, without waiting for user reminder.
+
+## Upstream Sync Rules (MANDATORY)
+
+When syncing from upstream (`git pull upstream main`), you MUST:
+
+1. **Keep fork README files**: `README.md` and `README.zh-CN.md` must always be resolved with `--ours` (keep the fork's own version). These files are maintained independently for this fork.
+
+2. **Create a changelog**: create `docs/changelogs/changelog-YYYY-MM-DD-N.md` where `N` is an auto-incremented sequence number starting from 1 (check existing files in `docs/changelogs/` for the latest number). The changelog must document:
+   - Operation type (sync from upstream)
+   - Upstream commit summary (grouped by type: feat/fix/docs/chore)
+   - File change statistics
+   - Conflict resolution details (which files, what method, why)
+   - Key auto-merged files worth noting
+
+3. **Report to user**: after sync, summarize in Chinese what upstream changed (new features, fixes, maintenance updates) and any conflicts encountered.
+
+4. Apply these rules immediately, without waiting for user reminder.
