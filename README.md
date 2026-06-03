@@ -15,10 +15,9 @@ All commands install under the `/ecc:` namespace.
 | Command | Description | README |
 |---|---|---|
 | `/ecc:plan-r` | Plan → Execute → Code Review pipeline | [README](commands/plan-r/README.md) |
-| `/ecc:plan-t` | Plan → TDD → review-gated merge pipeline | [README](commands/plan-t/README.md) |
-| `/ecc:plan-tr` | Plan → TDD → review-gated merge pipeline | [README](commands/plan-tr/README.md) |
+| `/ecc:plan-t` | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md) |
+| `/ecc:plan-tr` | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md) |
 | `/ecc:plan-doc` | Generate task-scoped documentation set | [README](commands/plan-doc/README.md) |
-| `/ecc:plan-doc-tr` | Plan-Doc → TDD → review-gated merge pipeline | [README](commands/plan-doc-tr/README.md) |
 
 ### Install Improvements
 

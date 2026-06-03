@@ -1,15 +1,16 @@
 ---
-description: Plan + TDD + auto code review (full pipeline, user only confirms plan)
+description: Plan + TDD + Code Review (serial pipeline, single worktree isolation, mkdir-lock CAS merge)
 ---
 
-# Plan-TR: Plan + TDD + Code Review (Full Pipeline)
+# Plan-TR: Plan + TDD + Code Review（全流水线）
 
-**🚨 关键约束**：本命令是三阶段强制管道。所有三个 Phase 都必须通过 Agent tool 真实执行对应子代理。在输出最终总结之前，绝不允许：
+**🚨 关键约束**：本命令是四阶段强制管道，全部串行执行。绝不允许：
 
-- 跳过 Phase 2 或 Phase 3
-- 用口头声明（"我已经完成了 TDD/Review"）代替实际的 Agent tool 调用
-- 在主对话上下文中直接编写代码（所有实现必须由 tdd-guide agent 完成）
+- 跳过任何 Phase
+- 用口头声明代替实际 Agent tool 调用
+- 在主对话中直接编写代码（所有实现必须由 `tdd-guide` agent 在隔离 worktree 内完成）
 - TDD 顺序错误（必须先写测试，再写实现）
+- 未通过 Phase 3 `[REVIEW_PASS]` 就进入 Phase 4 合并
 
 任何违反上述约束的执行都视为**命令失败**，必须回头重做。
 
@@ -18,6 +19,8 @@ description: Plan + TDD + auto code review (full pipeline, user only confirms pl
 ## Plan-TR 执行流程
 
 任务: $ARGUMENTS
+
+---
 
 ### === Phase 1 START: Planning ===
 
@@ -34,419 +37,355 @@ Skill tool with skill: "ecc:plan", args: $ARGUMENTS
 3. 生成分步计划
 4. **等待用户确认**
 
-**硬检查**: 用户确认文本必须包含以下任一关键词才能继续：
+**硬检查**：用户确认文本必须包含以下任一关键词才能继续：
 
 - "yes" / "确认" / "proceed" / "go ahead" / "可以" / "好的" / "同意"
 
 如果未检测到确认，停止并要求用户明确说"确认"。
 
----
-
-### === Phase 1.5: 并行分组分析（满足条件时执行）===
-
-**触发门前置检查**（进入触发门前必须完成，否则直接使用串行模式）：
-
-```bash
-# ⚠ Bash 工具每次调用是独立进程，变量不持久。此块的作用是 echo 字面值，
-# 主对话从 stdout 中抽取 RECORDED_MAIN_REPO= 和 RECORDED_MAIN_BRANCH= 的值，
-# 在后续所有含 <MAIN_REPO> / <MAIN_BRANCH> 的 Bash 调用中以字面量替换占位符再执行。
-set -e
-MAIN_REPO=$(git rev-parse --show-toplevel)
-MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-echo "RECORDED_MAIN_REPO=$MAIN_REPO"
-echo "RECORDED_MAIN_BRANCH=$MAIN_BRANCH"
-
-# 主仓若有未提交的已跟踪文件改动，仅发出警告；这不会阻止并发 dispatch，
-# 但这些改动不会进入新 worktree，且后续 merge queue 仍会在主仓未清理时被硬阻断。
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "⚠ [WARN] 主仓库存在未提交的已跟踪文件改动。并发 dispatch 仍可继续，但新 worktree 只会基于当前 HEAD，不会包含这些未提交改动。"
-  echo "  若当前任务依赖这些本地改动，请先 commit；否则 merge queue 会在主仓未清理时继续阻断。"
-  git status --porcelain --untracked-files=no
-fi
-# 主对话约定：此检查仅产生 [WARN]，不再单独阻断 Phase 2 并发 dispatch；真正的硬阻断仍发生在 merge SOP。
-```
-
-**触发门**（全部满足才执行本步骤，否则直接跳到 Phase 2 串行模式）：
-
-- [ ] 计划项总数 ≥ 3
-- [ ] 当前目录是 git 仓库（`git rev-parse --is-inside-work-tree` 返回 true）
-- [ ] 前置检查未出现会破坏并发 dispatch 的硬阻断（主仓未提交改动只记为 `[WARN]`，不单独触发串行降级）
-
-若任一条件不满足，跳过本步骤并在 Phase 2 使用串行模式，无需通知用户。
-
-**独立性判定 rubric**（保守原则：不确定就归同 group 或串行）：
-
-主对话根据 Phase 1 的计划文本，逐条检查：
-
-| 信号                                                                    | 判定                                 |
-| ----------------------------------------------------------------------- | ------------------------------------ |
-| 两个任务描述中出现相同文件路径                                          | 归为同一 group                       |
-| 一个任务"修改 X 类"，另一个"新增 X 类的方法/属性"                       | 归为同一 group                       |
-| 任务描述中出现"依赖 / 复用 / 调用 P<N>.<M>"                             | 显式依赖，后者 depends_on 前者       |
-| 任务描述中出现"初始化 / 迁移 / 修改 schema / 修改 config"而多个任务共用 | 归为同一 group                       |
-| 无以上信号，模块/文件不同                                               | 可标为独立 group                     |
-| 无法判断                                                                | 归为同一 group（保守降级，不标独立） |
-
-**输出示例**（主对话实际输出时必须用真实任务替换下方占位文本，不得保留"描述"两字）：
-
-```
-## 并行分组建议
-Group A（独立）: [P1.1 - <真实任务名>, P1.2 - <真实任务名>]  → 不共享文件/接口
-Group B（独立）: [P1.3 - <真实任务名>, P1.4 - <真实任务名>]  → 不共享文件/接口
-Group C（依赖 A）: [P1.5 - <真实任务名>]                     → 依赖 Group A 的输出
-
-执行策略: 并行启动 Group A + Group B（共 2 个 worktree），Group A 合并后再启动 Group C。
-最大并行数: 3 个 group（若超过，按任务量从大到小取前 3 组并行，其余串行追加）。
-
-是否采用此分组？回复"是"继续，或指定修改（例："把 P1.3 移入 Group A"）。
-```
-
-**自动继续**：输出分组建议后，在同一轮次立即进入并行派发，无需等待用户回复。若用户在下一轮回复 "stop" / "串行" / "取消"，下次调用时降级串行（当前轮次已启动的 agent 不受影响）。
+### === Phase 1 DONE ===
 
 ---
 
-### === Phase 2 START: TDD Execution ===
+### === Phase 2 START: TDD 执行（隔离 worktree）===
 
-**前置验证（必须完成）**:
+**前置验证**：
 
 - [ ] Phase 1 用户确认已收到？
 - [ ] 确认文本包含以上任一关键词？
-- [ ] 若计划项 ≥ 3 且是 git 仓库：Phase 1.5 分组建议已输出（自动继续，无需用户回复）？
-- 如任一项为否，停止并返回对应 Phase 等待处理
 
-**三无原则**（Phase 2 开始前）:
+如任一项为否，停止并等待用户确认。
+
+**三无原则**（Phase 2 开始前）：
 
 - 禁止在主对话中直接编写任何源代码
 - 禁止做任何直接代码修改决定
 - 禁止跳过测试而直接进入实现
 
-**并行调度策略（计划项 ≥ 3 时启用）**：
-
-在调用 tdd-guide 前，检查 Phase 1 计划中各任务项的依赖关系：
-
-- 若所有项互相依赖或只有 1 组独立任务 → **串行模式**（默认，见下方）。
-- 若存在 2+ 个无依赖或可变为 ready 的 group → **并行模式**：
-  1. 按独立性将计划项分组（不共享文件/接口的项归为同一 group），并维护一个 **ready queue**：凡 `depends_on` 已满足的 group 均可入队；初始 ready queue 仅包含 `depends_on` 为空的 group。
-  2. 维护最多 3 个**活跃 TDD 槽位**。在**单条消息**中优先填满空槽，每组一个 `tdd-guide` agent，并设置 `isolation: "worktree"`，prompt 仅包含该组的计划项。
-  3. **不得等待当前批次全部完成后再发下一批。** 任何活跃 group 一旦完成 Phase 2 并通过 worktree 立刻校验，就把该 group 交给 Phase 3 review 队列，并立即用 ready queue 中的下一个 group 补满空槽（若存在）。
-  4. Phase 3 review 只审查该 group 的 `git diff <MAIN_BRANCH>...HEAD --name-only` 变更。**只有返回 `[REVIEW_PASS]` 的 group 才能进入串行 merge 队列。**
-  5. 串行 merge 队列一次只处理一个 review-pass group（执行下方 Worktree 合并 SOP），每次成功后刷新基线：
-     ```bash
-     git checkout <MAIN_BRANCH> && git pull --ff-only origin <MAIN_BRANCH>
-     ```
-  6. 某 group merge 成功后，若其完成使其他依赖 group 的 `depends_on` 全部满足，则将这些 group 加入 ready queue；若此时有空槽，则从最新主分支立刻 dispatch。
-  7. 目标是：只要存在 ready group，就尽量保持活跃 TDD 槽位被填满；TDD、review 和串行 merge 可以流水化，但 merge 始终保持单线程。
-  8. 全部已通过 review 的 group 完成合并后，统一运行覆盖率检查。
-
-**Review-pass Worktree 合并 SOP**（仅并行模式；由 Phase 3 的 merge queue 调用）：
-
-> 同步说明：review-before-merge 共享段落（Phase 2 的并发 dispatch/setup 重试规则、本段 Worktree 合并 SOP、以及 Phase 3 的并行 review prompt）以 `docs/command-templates/plan-worktree-review-merge.zh-CN.md` 为中文模板、以 `docs/command-templates/plan-worktree-review-merge.en.md` 为英文模板。命令安装时会原样复制 `commands/*.md`，运行时不支持 include，因此正文必须保持内联；`tests/commands/plan-pipeline-order.test.js` 会校验同步。
-
-> ⚠ 并发限制：同一主仓库同一时刻只允许一个 Claude 进程执行此 SOP。多个 Claude 并发运行时，请确保合并操作串行进行，否则 `git checkout` / `git merge` 会产生竞态，仍可能导致数据丢失。如需自动序列化，可在步骤 2 前用 `flock` 对主仓库目录加文件锁。
-
-> ⚠ 准入门：只有最后一轮 review 明确输出 `[REVIEW_PASS]` 的 group 才允许执行此 SOP。禁止合并任何尚未通过 review 的 worktree。
-
-所有 tdd-guide agent 返回后，从每个 agent 的**最终消息末尾两行**严格抽取：
-
-- `WORKTREE_PATH: <绝对路径>` — 隔离 worktree 的目录
-- `BRANCH_NAME: <分支名>` — 该 worktree 内创建的分支名
-
-> ⚠ 抽取规则：用正则 `^WORKTREE_PATH: (.+)$` 和 `^BRANCH_NAME: (.+)$` 匹配。若任一字段缺失，**视为 agent 异常**，立刻停止 SOP，报告"agent 未输出 worktree 信息，可能未 commit 导致 worktree 被自动清理"，等待人工处理。禁止猜测路径。
-
-**agent 返回后立刻校验（每个 group，提取路径后立即执行）**：
+**Worktree 初始化**：
 
 ```bash
-# 将 <WORKTREE_PATH> 替换为 WORKTREE_PATH: 行抽取的绝对路径，
-# 将 <BRANCH_NAME> 替换为 BRANCH_NAME: 行抽取的分支名
-[ -d "<WORKTREE_PATH>" ] || { echo "⚠ [FATAL] worktree 目录不存在: <WORKTREE_PATH>。可能原因：agent 未 commit / agent 异常退出 / harness 主动清理。请检查 agent 完整返回内容。停止 SOP。"; exit 1; }
-git -C "<WORKTREE_PATH>" rev-parse "<BRANCH_NAME>" >/dev/null 2>&1 || { echo "⚠ [FATAL] 分支不存在: <BRANCH_NAME>。停止 SOP。"; exit 1; }
-git -C "<WORKTREE_PATH>" log --oneline -1
-echo "✅ worktree 校验通过: <WORKTREE_PATH> @ <BRANCH_NAME>"
+# 记录主仓信息（后续 bash 块替换占位符用）
+set -e
+MAIN_REPO=$(git rev-parse --show-toplevel)
+MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# TASK_SLUG: 从 $ARGUMENTS 自动生成——转小写、非字母数字替换为连字符、去首尾连字符、限40字符
+TASK_SLUG=$(printf "%s" "$ARGUMENTS" \
+  | tr '[:upper:]' '[:lower:]' \
+  | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' \
+  | cut -c1-40)
+[ -n "$TASK_SLUG" ] || TASK_SLUG="task"
+# 加入 PID 防止同秒并发时分支名冲突
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)-$$
+BRANCH_NAME="ecc/${TASK_SLUG}-${TIMESTAMP}"
+WORKTREE_PATH="${MAIN_REPO}/../$(basename ${MAIN_REPO})-ecc-worktrees/${TASK_SLUG}-${TIMESTAMP}"
+echo "RECORDED_MAIN_REPO=$MAIN_REPO"
+echo "RECORDED_MAIN_BRANCH=$MAIN_BRANCH"
+echo "RECORDED_BRANCH_NAME=$BRANCH_NAME"
+echo "RECORDED_WORKTREE_PATH=$WORKTREE_PATH"
 ```
 
-若上述立刻校验失败，且该 agent **已经输出过** `WORKTREE_PATH` / `BRANCH_NAME`，则**这不是 dispatch failure**，而是 `worktree_lost_after_dispatch`：不得进入 review 或 merge；必须从当前主分支重新切该 group 的 worktree，并回到 Phase 2 重跑该 group。其他已通过立刻校验的 group 不重跑。该类重试最多 3 轮（**每个 group 独立计数**）；超过后将该 group 标记为 `worktree_recovery_failed`，Phase 2 不得完成；已在运行的其他 group 可以继续，但禁止进入依赖该 group 的后续 group 和 Phase 3。向用户报告最后一次错误，并建议检查残留 worktree、锁文件（如 `.git/config.lock`）或降级为串行模式。
-
-执行前在主对话中记录（Phase 1.5 前置检查 stdout 中已 echo）：
-
-- `<MAIN_REPO>` — 从 `RECORDED_MAIN_REPO=` 行抽取的字面路径，替换进后续所有 bash 块
-- `<MAIN_BRANCH>` — 从 `RECORDED_MAIN_BRANCH=` 行抽取的字面分支名，替换进后续所有 bash 块
-
-对每个 group 分支，按依赖顺序依次执行下方步骤 1–3（每次迭代替换 `<WORKTREE_PATH>`、`<BRANCH_NAME>`、`<MAIN_REPO>`、`<MAIN_BRANCH>`、`<标签>`）：
+主对话必须从 stdout 提取并记录这四个字面值，后续所有 bash 块中用实际值替换 `<MAIN_REPO>`、`<MAIN_BRANCH>`、`<BRANCH_NAME>`、`<WORKTREE_PATH>`。
 
 ```bash
-# ⚠ 执行前先将所有 <占位符> 替换为实际值；整个代码块须在单次 Bash 调用中执行
-set -e          # 任一命令失败立即中止，防止错误级联
-set -o pipefail # 管道中任一命令失败也触发 set -e
-# ── 步骤 1：合并前将 worktree 分支 rebase 到最新主分支 ──
-# 防止 worktree 基于旧基线，导致合并后静默覆盖他人已合入的改动
-cd "<WORKTREE_PATH>"
-git fetch origin
-if ! git rebase origin/<MAIN_BRANCH>; then
-  echo "⚠ [BLOCKED] rebase 冲突，脚本已自动 abort。请到 <WORKTREE_PATH> 手动 rebase 解决冲突后重新触发 SOP。"
-  git rebase --abort 2>/dev/null || true
-  exit 1
-fi
-
-# ── 步骤 2：切回主仓库，检查已跟踪文件的未提交改动，拉取最新 ──
-# 注意：仅检测已跟踪文件（untracked 文件不影响 checkout，不纳入检测以避免误报）
-cd "<MAIN_REPO>"
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "⚠ [BLOCKED] 主仓库存在未提交的已跟踪文件改动，切换分支可能导致丢失。请先 commit。"
-  echo "  禁止用 git stash 绕过此检查，禁止用 git cherry-pick 替代 merge。"
-  git status --porcelain --untracked-files=no
-  exit 1
-fi
-git checkout <MAIN_BRANCH>
-git pull --ff-only origin <MAIN_BRANCH>
-
-# ── 步骤 3：dry-run 检测 merge 冲突及删除型 lost update ──
-if ! git merge --no-ff --no-commit "<BRANCH_NAME>"; then
-  echo "⚠ [BLOCKED] merge 冲突，已中止。冲突文件如下（解决后重新触发 SOP）："
-  git diff --name-only --diff-filter=U
-  git merge --abort
-  exit 1
-fi
-DELETED=$(git diff --cached --diff-filter=D --name-only)
-if [ -n "$DELETED" ]; then
-  echo "⚠ [BLOCKED] 检测到以下文件将被删除，可能覆盖他人改动，已中止合并："
-  echo "$DELETED"
-  git merge --abort
-  exit 1
-fi
-git commit -m "merge: TDD Group <标签>"
-MERGE_COMMIT=$(git rev-parse HEAD)
-echo "RECORDED_MERGE_COMMIT_<标签>=$MERGE_COMMIT"
+# 建立隔离 worktree + 在 worktree 分支上打回滚锚点标签
+set -e
+mkdir -p "$(dirname "<WORKTREE_PATH>")"
+git worktree add "<WORKTREE_PATH>" -b "<BRANCH_NAME>"
+# ⚠ 标签必须在 worktree 内打，才能用于真实 reset 回滚
+git -C "<WORKTREE_PATH>" tag "ecc-premerge-<TASK_SLUG>-<TIMESTAMP>"
+echo "✅ worktree 创建成功: <WORKTREE_PATH> @ <BRANCH_NAME>"
 ```
 
-任何步骤失败（rebase 冲突、未提交改动检测、merge 冲突、删除型 lost update 检测）时，阻塞当前 group 的合并并停止 merge queue，向用户报告详情，等待人工处理后再继续。
-
-迭代规则：若某一 group 的步骤 1–3 有任一命令以非 0 退出，立即停止整个 SOP，不继续后续 group。已合并的 group 保留在主分支，未合并的 group worktree 保留待人工处理。
-
-**并行 worktree 预提示**（输出后立即继续，不等待用户回复）：
-
-> ⚠ 并行模式：每个 worktree 会独立运行依赖安装（`pub get` / `npm install` / `cargo build`），依赖较多时总耗时可能超过串行。
-
-并行调度示例（单条消息，两个 tool call）：
-
-```
-Agent tool #1: subagent_type="tdd-guide", isolation="worktree"
-  prompt: "执行 Group A 的严格 TDD: [P1.1, P1.2, P1.3]。
-           RED→GREEN→IMPROVE→REPEAT。80% 最小覆盖率。
-           完成所有工作后，必须执行 git add -A && git commit（至少一次），
-           并在最终消息的最后两行**严格**输出（格式不能变，主对话依赖此格式）：
-           WORKTREE_PATH: <当前 worktree 绝对路径>
-           BRANCH_NAME: <当前分支名>"
-
-Agent tool #2: subagent_type="tdd-guide", isolation="worktree"   ← 同一条消息
-  prompt: "执行 Group B 的严格 TDD: [P1.4, P1.5]。
-           RED→GREEN→IMPROVE→REPEAT。80% 最小覆盖率。
-           完成所有工作后，必须执行 git add -A && git commit（至少一次），
-           并在最终消息的最后两行**严格**输出（格式不能变，主对话依赖此格式）：
-           WORKTREE_PATH: <当前 worktree 绝对路径>
-           BRANCH_NAME: <当前分支名>"
-```
-
-**并发 dispatch / setup 失败处理**（仅适用于该 group 尚未真正开始 TDD 时）：
-
-- 若某 group 在 worktree 创建、branch 创建或 agent 启动阶段失败，且失败前**未输出** `WORKTREE_PATH` / `BRANCH_NAME`、也**没有任何 RED 阶段测试结果**，则视为 **dispatch / setup failure**，不是“测试失败”。
-- 常见信号：`could not lock config file`、`failed to create worktree`、`unable to create branch`、`already exists` 等 git/worktree 初始化错误。
-- 处理规则：
-  1. **只重试该 group 的派发 / 创建**，不重跑其他已成功启动的 group。
-  2. 若运行时支持，在初始尝试失败后，于**同一轮次**对该 group 最多再做 3 次短退避重试（总尝试次数 = 1 次初始 + 3 次重试，例如 1s / 2s / 4s）；若运行时不支持等待，则在下一个可用 turn **优先立即重试**，**不得等待其他 group 全部完成后再处理**。
-  3. 已成功启动的 group 保持并发执行；不得因为某个 group 的 dispatch 失败就把整批降级成“等当前 group 跑完再说”。
-  4. 若重试成功，该 group 视为**首次真正启动**，从 RED→GREEN→IMPROVE 开始；TDD 阶段失败计数从 0 开始，dispatch 重试次数不计入后续“测试失败”的 3 轮上限。
-  5. 若 3 次派发重试后仍失败，将该 group 标记为 `dispatch_blocked`。此时 Phase 2 不得完成；已在运行的 group 可以继续，但禁止进入依赖该 group 的后续 group，也禁止进入 Phase 3。向用户报告最后一次错误，并建议检查 `.git/config.lock`、残留 worktree，或降级为串行模式。
-
-**执行操作**（串行模式 / 单组降级）：
-
-通过 Agent tool 调用 `tdd-guide` 子代理，让其按计划执行：
+**调用 tdd-guide 子代理（串行，单 agent，在 worktree 内执行）**：
 
 ```
 Agent tool with subagent_type: "tdd-guide"
-prompt: "按照以下计划执行严格 TDD: [复制 Phase 1 最终计划]. 必须遵守 RED→GREEN→IMPROVE→REPEAT 循环。80% 最小覆盖率。"
+prompt: "在以下 worktree 目录中执行严格 TDD: <WORKTREE_PATH>
+         必须先 cd 到该目录，所有文件操作均在该目录内进行。
+
+         按照以下计划执行: [复制 Phase 1 最终计划]
+
+         必须遵守 RED→GREEN→IMPROVE→REPEAT 循环：
+         1. RED: 为每个计划项先写失败测试，运行确认失败（输出失败截图/日志）
+         2. GREEN: 写最小实现使测试通过，运行确认通过
+         3. IMPROVE: 重构，保持测试绿灯
+
+         覆盖率要求: ≥80%（安全关键/金融逻辑: 100%）
+         完成所有工作后执行 git add -A && git commit（至少一次）。
+         报告中必须包含：失败测试列表（RED 阶段截图）、通过测试数量、覆盖率百分比。"
 ```
 
-**TDD 强制流程**（由 tdd-guide agent 执行）：
+**Phase 2 完成校验（tdd-guide 返回后立刻执行）**：
 
-1. **RED**: 为每个计划项写**失败测试** FIRST
-2. **GREEN**: 写最小代码使测试通过
-3. **IMPROVE**: 重构并保持测试绿灯
-4. **REPEAT**: 循环处理所有计划项
+```bash
+[ -d "<WORKTREE_PATH>" ] || { echo "⚠ [FATAL] worktree 目录不存在: <WORKTREE_PATH>"; exit 1; }
+git -C "<WORKTREE_PATH>" rev-parse "<BRANCH_NAME>" >/dev/null 2>&1 \
+  || { echo "⚠ [FATAL] 分支不存在: <BRANCH_NAME>"; exit 1; }
+git -C "<WORKTREE_PATH>" log --oneline -3
+echo "✅ worktree 校验通过"
+```
 
-**覆盖率要求**：
+质量门（全部满足才能进 Phase 3）：
 
-- 通用代码：≥80%
-- 安全关键 / 金融逻辑：100%
+- [ ] 所有测试通过，覆盖率 ≥ 80%
+- [ ] tdd-guide 报告中包含 RED 阶段失败测试证据
+- [ ] **集成测试无虚假 mock**：识别集成测试目录并运行
+  `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|MagicMock|mock\.patch" <integration-test-dir>`；若无集成测试目录，tdd-guide 必须在报告中明示
+- [ ] **凭据缺失策略合规**：所有 skip 必须有明确文字原因，禁止静默 skip
 
-**Phase 2 完成标记**：
-
-串行模式 — 单个 tdd-guide agent 返回后：
-
-- ✅ 所有测试通过
-- ✅ 覆盖率指标 ≥ 80%
-- ✅ git log 显示测试文件先提交
-- ✅ **集成测试无虚假 mock 通过**：先识别集成测试目录（候选：`tests/integration/`、`test/integration/`、`integration_test/`、`__tests__/integration/`、文件名匹配 `*_integration_test.*`、`*.integration.test.*`、`*IntegrationTest.*`），再在命中的目录或文件中执行 `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|Mockito\.(mock|when)|gomock|MagicMock|mock\.patch|monkeypatch|stub\(" <hits>`；如果目录全部不存在，必须要求 tdd-guide agent 在报告中**明示项目实际的集成测试位置**，禁止以"目录不存在 → 抽查通过"作为门禁结论
-- ✅ **凭据缺失策略合规**：若存在 skip，每个 skip 必须有明确文字原因（如 "DEEPSEEK_API_KEY not set"），不得静默 skip 或以 mock 代替
-- ✅ **RED 真实性**：Phase 2 报告必须列出每个测试初次失败的真实原因（业务逻辑 / 连接错误 / auth 错误），不允许"插入 mock 后变绿"作为 RED→GREEN 的过渡手段
-
-并行模式 — ready queue 中所有已 dispatch 的 group 返回且各自 worktree 完成立刻校验后：
-
-- ✅ 每个 group agent 均报告测试全部通过（聚合要求：任何 group 有失败测试均不达标）
-- ✅ 每个 group 的 worktree 已通过目录/分支存在性校验，准备进入 Phase 3 review
-- ✅ 每个 group 的 worktree 内部 git log 显示该 group 的测试提交在其实现提交之前（合并后主分支的整体顺序不作要求）
-- ✅ **集成测试无虚假 mock 通过**（每个 group 均须通过 grep 抽查，同串行模式标准）
-- ✅ **凭据缺失策略合规**（每个 group 的 skip 均有明确原因，同串行模式标准）
-- ✅ **RED 真实性**（每个 group 的 Phase 2 报告均须列出 RED 阶段真实失败原因，同串行模式标准）
-- ✅ 任何 group 在最后一轮 review 输出 `[REVIEW_PASS]` 之前不得执行合并 SOP
-- ✅ 不存在 `dispatch_blocked` 或 `worktree_recovery_failed` 的 group；若某 group 仍处于派发失败或 worktree 恢复失败状态，Phase 2 不得完成
-
-若某 group **已成功完成 dispatch 并进入 TDD 后**测试失败：
-
-- **仅对该 group 重试**：丢弃该 group 的旧 worktree，从当前主分支重新切 worktree 后再次启动 tdd-guide agent（`isolation: "worktree"`）。其他已通过的 group 不重跑。
-- **最大重试次数：3 轮**。超过 3 轮仍失败时，停止重试，向用户报告失败原因和建议（拆分任务 / 修改技术方案 / 降级串行后手动处理）。禁止在 3 轮失败后继续自动重试。
-- 在该 group 通过（或人工处理）前，禁止进入 Phase 3。
+### === Phase 2 DONE ===
 
 ---
 
-### === Phase 3 START: Code Review Loop ===
+### === Phase 3 START: Code Review 闭环 ===
 
-**前置验证（必须完成）**:
+**前置验证**：
 
-串行模式：
-
-- [ ] tdd-guide agent 是否真实被调用过？
-- [ ] 所有测试通过？
-- [ ] 覆盖率 ≥ 80%？
-
-并行模式：
-
-- [ ] 每个 group 的 tdd-guide agent 都真实被调用过？（逐 group 检查 Agent tool 调用记录）
-- [ ] 每个 group 的测试全部通过？（任一 group 有失败 → 回到 Phase 2 对该 group 重试）
-- [ ] 每个 group 的 worktree 都已通过立刻校验且仍可用于 review？（若某 group 在 review 前被清理 → 回到 Phase 2 重跑该 group，禁止直接合并）
+- [ ] tdd-guide agent 真实调用过？
+- [ ] 所有测试通过且覆盖率达标？
+- [ ] worktree 目录和分支仍存在？
 
 任一项为否，停止并回到 Phase 2 处理对应问题。
 
-**Code Review 闭环机制**（必须按以下循环执行，直到退出条件满足）：
+**Code Review 闭环**（最多 3 轮，直到 `[REVIEW_PASS]`）：
 
-```
-LOOP（每个 group 独立执行）:
-  1. 调用 code-reviewer agent 在该 group 的 worktree 内执行审查
-  2. 收集审查报告
-  3. 如果存在 CRITICAL 或 HIGH 问题：
-    → 调用 code-reviewer agent 在同一 worktree 内修复
-    → 修复完成后回到步骤 1（再次审查）
-  4. 如果该 group 返回 [REVIEW_PASS]：
-    → 将该 group 放入串行 merge 队列
-    → merge 队列获取独占锁后执行 Worktree 合并 SOP
-  5. 仅当 merge 成功时，标记该 group 完成；merge 失败则停止队列并等待人工处理
-```
-
-**退出条件**（必须同时满足）：
-
-- 无任何 CRITICAL 问题（安全漏洞、硬编码密钥、注入风险）
-- 无任何 HIGH 问题（大函数 >50行、深层嵌套 >4层、缺失错误处理）
-- MEDIUM / LOW 问题已记录（无需阻塞退出）
-
-**并行 Review（Phase 2 以并行模式运行时）**：
-
-若 Phase 2 使用了并行模式，各 group 的 worktree 变更文件互相独立，可同时 review。**任何 merge 发生前必须先完成该 group 的 review。** 在**单条消息**中并行启动多个 code-reviewer agent：
-
-```
-Agent tool #1: subagent_type="code-reviewer"
-  prompt: "cd <WORKTREE_PATH_A>（Group A 的 worktree 绝对路径）。
-           先验证目录存在：[ -d <WORKTREE_PATH_A> ] || exit 1
-           运行 `git diff <MAIN_BRANCH>...HEAD --name-only` 获取变更文件列表，
-           审查这些文件。CRITICAL/HIGH/MEDIUM/LOW。
-           修复 CRITICAL 和 HIGH。输出 [REVIEW_PASS] 或 [REVIEW_FAIL: ...]。"
-
-Agent tool #2: subagent_type="code-reviewer"   ← 同一条消息
-  prompt: "cd <WORKTREE_PATH_B>（Group B 的 worktree 绝对路径）。
-           先验证目录存在：[ -d <WORKTREE_PATH_B> ] || exit 1
-           运行 `git diff <MAIN_BRANCH>...HEAD --name-only` 获取变更文件列表，
-           审查这些文件。CRITICAL/HIGH/MEDIUM/LOW。
-           修复 CRITICAL 和 HIGH。输出 [REVIEW_PASS] 或 [REVIEW_FAIL: ...]。"
-```
-
-> 注：`<WORKTREE_PATH_A>` 等为 Phase 2 立刻校验通过的各 group `WORKTREE_PATH` 字面值；`<MAIN_BRANCH>` 为 Phase 1.5 前置检查记录的字面值。若 worktree 在 review 前被 harness 清理，视为该 group 未完成 review，必须从当前主分支重新切出 worktree 重跑该 group；**禁止**退化为“先 merge 再看 merge commit diff”。
-
-汇总所有 group 的结果。若某 group 返回 `[REVIEW_FAIL]`：
-
-- **仅重试该 group**：
-  - 若 worktree 仍存在：在该 group 的 worktree 目录下重新启动 code-reviewer agent。
-  - 若 worktree 已被 harness 清理：从当前主分支重新切该 group 的 worktree，并回到 Phase 2 重跑该 group；在完成 review 前不得合并。
-  - 已通过的 group 不重跑。
-- **最大重试次数：3 轮**。超过 3 轮仍有 CRITICAL/HIGH 时，停止循环，向用户报告遗留问题列表，由人工决策是否合并。
-- 当某 group 返回 `[REVIEW_PASS]` 时，将其加入串行 merge 队列。merge 队列一次只处理一个 group，并在加锁后执行 Worktree 合并 SOP。
-- 重试时文件范围：仅在 worktree 仍存在时使用 `git diff <MAIN_BRANCH>...HEAD --name-only`。不使用 merge-commit diff，也不使用 `git diff HEAD`。
-
-**每轮审查执行操作**（串行模式 / 单组降级）：
-
-通过 Agent tool 调用 `code-reviewer` 子代理：
+每轮调用：
 
 ```
 Agent tool with subagent_type: "code-reviewer"
-prompt: "审核 git diff HEAD 中的所有变更文件。检查安全性（CRITICAL）、结构（HIGH）、模式（MEDIUM）、风格（LOW）。
-修复所有 CRITICAL 和 HIGH 问题。修复完成后输出：[REVIEW_PASS] 表示无 CRITICAL/HIGH，或 [REVIEW_FAIL: <问题列表>] 表示仍有问题需要下一轮修复。"
+prompt: "cd <WORKTREE_PATH>
+         [ -d <WORKTREE_PATH> ] || exit 1
+
+         运行 git diff <MAIN_BRANCH>...HEAD --name-only 获取变更文件。
+         逐文件审查（严重等级从高到低）：
+           CRITICAL: 安全漏洞、硬编码密钥/令牌、SQL 注入、XSS 风险
+           HIGH: 函数超 50 行、嵌套超 4 层、缺失错误处理、未验证用户输入
+           MEDIUM: 变异模式、缺失测试、可维护性问题
+           LOW: 命名不一致、格式问题
+
+         修复所有 CRITICAL 和 HIGH 问题。
+         ⚠ 每处修复完成后必须重新运行相关测试；若修改影响公共接口或核心逻辑，运行完整测试套件。
+         最终输出 [REVIEW_PASS] 或 [REVIEW_FAIL: <问题列表>]。"
 ```
 
-**代码审查覆盖范围**：
+循环记录（主对话维护）：
 
-1. 运行 `git diff --name-only HEAD` 识别已修改文件
-2. 逐文件审查：
-   - **CRITICAL**: 安全漏洞、硬编码密钥、注入风险
-   - **HIGH**: 大函数 (>50行)、深层嵌套 (>4层)、缺失错误处理
-   - **MEDIUM**: 变异模式、缺失测试、复杂度问题
-   - **LOW**: 命名不一致、格式问题
-3. 输出结构化审查报告（含严重级别 + 文件:行号）
-4. **修复** CRITICAL 和 HIGH 问题
-5. 在报告末尾输出 `[REVIEW_PASS]` 或 `[REVIEW_FAIL: ...]`
-
-**循环记录**（主对话必须维护）：
-
-串行模式：
 | 轮次 | CRITICAL | HIGH | MEDIUM | LOW | 结果 |
 |------|----------|------|--------|-----|------|
 | #1 | ? | ? | ? | ? | PASS/FAIL |
 | #2（如有）| ? | ? | ? | ? | PASS/FAIL |
+| #3（如有）| ? | ? | ? | ? | PASS/FAIL |
 
-并行模式 — 每个 group 独立记录，哪个 group 失败就只重跑那个 group：
-| Group | 轮次 | CRITICAL | HIGH | MEDIUM | LOW | 结果 |
-|-------|------|----------|------|--------|-----|------|
-| A | #1 | ? | ? | ? | ? | PASS/FAIL |
-| A | #2（仅在失败时重试）| ? | ? | ? | ? | PASS/FAIL |
-| B | #1 | ? | ? | ? | ? | PASS/FAIL |
+**退出条件**：
 
-**Phase 3 完成标记**：
+- 无 CRITICAL、无 HIGH → `[REVIEW_PASS]`，进入 Phase 4
+- 3 轮后仍有 CRITICAL/HIGH → 停止，向用户报告遗留问题，由用户决策是否继续
 
-- 串行：最后一轮返回 `[REVIEW_PASS]`，循环记录无遗留 CRITICAL/HIGH。
-- 并行：循环记录中**每个 group** 的最后一轮均为 `[REVIEW_PASS]`，且每个 review-pass group 都已通过串行 merge 队列成功合并。之后主对话在主分支统一运行一次覆盖率检查，结果需 ≥ 80%。任何 group 仍有 `[REVIEW_FAIL]` 或 merge 未完成，则 Phase 3 未完成。
+### === Phase 3 DONE ===
+
+---
+
+### === Phase 4 START: 本地 CAS 原子合并 ===
+
+**前置验证**：
+
+- [ ] Phase 3 最后一轮返回了 `[REVIEW_PASS]`？
+
+否则停止，回到 Phase 3。
+
+**设计原则（local-only）**：
+
+- **纯本地协议**：所有 Claude 进程在同一台机器操作同一仓库，远端（origin）不参与并发协调；push 由用户手动执行
+- **CAS 版本号 = 本地 `<MAIN_BRANCH>` HEAD**：唯一的共享状态是本地 main，不需要 fetch
+- **锁外做慢活**：rebase + 解冲突 + 跑测试，与其他 Claude 进程并发无害
+- **锁内永远只做毫秒级操作**：读本地 HEAD、CAS 校验、`git merge --ff-only`，**严禁在锁内执行 rebase**
+- **`mkdir` 原子锁**：`mkdir` 是 POSIX 原子操作，macOS/Linux 均可用，无任何外部依赖
+- 无文件交集：锁外 rebase 后重新抢锁 + quick check，不重跑全量测试
+- 有文件交集：回锁外 rebase + 全量测试（最多 5 次）
+
+---
+
+#### 第一段：锁外准备（慢活，可与其他 Claude 并发）
+
+```bash
+# 本地 CAS：直接读本地 main HEAD（local-only，不依赖远端）
+set -e
+BASE=$(git -C "<MAIN_REPO>" rev-parse refs/heads/<MAIN_BRANCH>)
+echo "RECORDED_BASE=$BASE"
+```
+
+主对话记录 `RECORDED_BASE` 的字面值。
+
+```bash
+# rebase 到本地最新 <MAIN_BRANCH>（用完整 ref，避免与 tag/remote 名歧义）
+set -e
+cd "<WORKTREE_PATH>"
+git rebase refs/heads/<MAIN_BRANCH>
+echo "✅ rebase 完成（无冲突）"
+```
+
+如果 rebase 报告冲突，执行 **AI 自动解冲突**：
+
+对每个冲突文件：
+
+1. 读取 `<<<<<<<`、`=======`、`>>>>>>>` 三段内容
+2. 分析双方改动意图：
+   - 改动不重叠（不同函数/行）→ 合并保留双方
+   - 一边是格式/重命名，另一边是逻辑 → 保留逻辑并应用格式
+   - 真正语义冲突（同一逻辑两边都改了）→ **停止自动解，立即 abort + reset，由人工处理**
+3. 写回解决后的文件，执行 `git add <file>`
+4. 全部文件解完后执行 `git rebase --continue`
+
+```bash
+# 解冲突后跑完整测试验证
+set -e
+cd "<WORKTREE_PATH>"
+# 根据项目类型选择：npm test / pytest / go test ./... 等
+<test-command>
+echo "✅ 解冲突后测试通过"
+```
+
+若测试失败：
+
+- 重新分析该文件冲突块，重解，重测
+- 若仍失败，abort + 重置到锚点并停止：
+
+```bash
+git -C "<WORKTREE_PATH>" rebase --abort
+git -C "<WORKTREE_PATH>" reset --hard "ecc-premerge-<TASK_SLUG>-<TIMESTAMP>"
+echo "❌ 无法自动解冲突，已重置到锚点 ecc-premerge-<TASK_SLUG>-<TIMESTAMP>"
+echo "请人工处理冲突后重试 Phase 4。"
+```
+
+---
+
+#### 第二段：抢锁，锁内原子合并（毫秒级，禁止 rebase）
+
+**锁机制**：`mkdir` 是 POSIX 原子操作，无外部依赖，macOS/Linux 均可用。
+`mkdir` 成功即获得锁；失败则 1 秒后重试（低频等待，非忙轮询）。
+进程退出时通过 `trap` 自动释放锁目录。若进程被强杀导致锁残留，可检测 PID 文件判断锁是否有效。
+
+```bash
+set -e
+LOCK_DIR="<MAIN_REPO>/.git/ecc-merge.lockdir"
+LOCK_PID_FILE="$LOCK_DIR/pid"
+RECORDED_BASE="<RECORDED_BASE>"
+
+# 抢锁（阻塞等待）
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  # 检查持锁进程是否仍存活；若已死，先原子改名再删除，避免误删其他进程刚创建的新锁
+  if [ -f "$LOCK_PID_FILE" ] && ! kill -0 "$(cat "$LOCK_PID_FILE")" 2>/dev/null; then
+    STALE_LOCK_DIR="${LOCK_DIR}.stale.$$"
+    if mv "$LOCK_DIR" "$STALE_LOCK_DIR" 2>/dev/null; then
+      echo "⚠ 发现陈旧锁（持锁进程已退出），清理: $STALE_LOCK_DIR"
+      rm -rf "$STALE_LOCK_DIR"
+      continue
+    fi
+  fi
+  echo "等待合并锁: $LOCK_DIR"
+  sleep 1
+done
+echo $$ > "$LOCK_PID_FILE"
+trap 'rm -rf "$LOCK_DIR"' EXIT INT TERM
+echo "✅ 已获得合并锁"
+
+# CAS：读本地分支 HEAD（不是 origin，因为不自动 push）
+NOW=$(git -C "<MAIN_REPO>" rev-parse refs/heads/<MAIN_BRANCH>)
+
+if [ "$NOW" = "$RECORDED_BASE" ]; then
+  # 基线未变，直接 ff-only 合并（毫秒级）
+  git -C "<MAIN_REPO>" checkout <MAIN_BRANCH>
+  git -C "<MAIN_REPO>" merge --ff-only "refs/heads/<BRANCH_NAME>"
+  echo "MERGE_RESULT=success_no_change"
+
+else
+  # 等锁期间他人合入了新内容，计算文件交集
+  CHANGED_BY_OTHERS=$(git -C "<MAIN_REPO>" diff "$RECORDED_BASE".."$NOW" --name-only)
+  MY_FILES=$(git -C "<WORKTREE_PATH>" diff --name-only "$RECORDED_BASE" HEAD)
+  INTERSECTION=$(comm -12 \
+    <(printf "%s\n" "$MY_FILES" | sort) \
+    <(printf "%s\n" "$CHANGED_BY_OTHERS" | sort))
+
+  if [ -z "$INTERSECTION" ]; then
+    # 无直接文件交集：锁内禁止 rebase，释放锁后锁外处理
+    echo "MERGE_RESULT=need_rebase_no_retest"
+    echo "NEW_BASE=$NOW"
+  else
+    # 有文件交集：回锁外 rebase + 全量重测
+    echo "MERGE_RESULT=need_retest"
+    echo "NEW_BASE=$NOW"
+  fi
+fi
+
+# 释放锁（trap 会在 EXIT 时执行，这里提前释放以减少锁持有时间）
+rm -rf "$LOCK_DIR"
+trap - EXIT INT TERM
+echo "✅ 合并锁已释放"
+```
+
+**根据 MERGE_RESULT 决策**（从 stdout 提取）：
+
+- `success_no_change`：进入第三段清理
+- `need_rebase_no_retest`：设置 `RECORDED_BASE=$NEW_BASE`，锁外执行：
+  ```bash
+  set -e
+  cd "<WORKTREE_PATH>"
+  git rebase refs/heads/<MAIN_BRANCH>
+  # Quick check（不跑全量测试，仅验证基础可用性）
+  # Node: npm run typecheck  |  Python: python -m compileall .
+  # Go: go vet ./...         |  Rust: cargo check
+  <quick-check-command>
+  echo "✅ 无交集 rebase + quick check 完成"
+  ```
+  重新进入第二段抢锁（不重跑全量测试）
+- `need_retest`：设置 `RECORDED_BASE=$NEW_BASE`，重试次数 +1；若已达 5 次：
+
+  ```
+  ❌ 文件并发争用过高（已重试 5 次），建议错峰执行或人工合并。
+  停止。请手动将 <BRANCH_NAME> 合并到 <MAIN_BRANCH>。
+  ```
+
+  否则回到"第一段：锁外准备"重跑（rebase + 全量测试）
+
+---
+
+#### 第三段：清理 worktree
+
+```bash
+git -C "<MAIN_REPO>" worktree remove "<WORKTREE_PATH>" --force \
+  || echo "⚠ worktree 目录清理失败，请手动删除: <WORKTREE_PATH>"
+git -C "<MAIN_REPO>" branch -d "<BRANCH_NAME>" \
+  || echo "⚠ 分支清理失败，请手动删除: <BRANCH_NAME>"
+echo "✅ worktree 已清理"
+echo "ℹ 合并已完成到本地 <MAIN_BRANCH>，如需推送请手动执行:"
+echo "    git push origin <MAIN_BRANCH>"
+```
+
+### === Phase 4 DONE ===
 
 ---
 
 ## 收尾自检报告（强制输出）
 
-在完全结束前，输出如下表格验证三个 Phase 都被正确执行：
+无论成功或失败，命令结束前必须输出以下表格：
 
-| Phase                    | 状态  | 证据                                                         |
-| ------------------------ | ----- | ------------------------------------------------------------ |
-| **Phase 1: Plan**        | ✅/❌ | 用户确认原文 + 任务计划内容                                  |
-| **Phase 2: TDD**         | ✅/❌ | tdd-guide agent 调用 ID + 最终测试通过数 + 覆盖率 %          |
-| **Phase 3: Review Loop** | ✅/❌ | 总轮次 + 每轮 CRITICAL/HIGH 问题数 + 最终 [REVIEW_PASS] 标记 |
+| Phase | 状态 | 证据 |
+|-------|------|------|
+| **Phase 1: Plan** | ✅/❌ | 用户确认原文 + 任务计划内容摘要 |
+| **Phase 2: TDD** | ✅/❌ | tdd-guide agent 调用 + worktree 路径 + 测试通过数 + 覆盖率 % + RED 阶段证据 |
+| **Phase 3: Review Loop** | ✅/❌ | 总轮次 + 每轮 CRITICAL/HIGH 数 + 最终 [REVIEW_PASS] |
+| **Phase 4: CAS 合并** | ✅/❌ | BASE/NOW 值 + MERGE_RESULT + 是否重试（共几次）+ 合并 commit hash |
 
-**验收标准**：
-
-- 表格中任何一项为 ❌，命令视为**失败**
-- 所有项都必须为 ✅，才能输出最终总结
-- 如有 ❌，补做相应 Phase 直到为 ✅
+任何 ❌ → 命令失败，补做对应 Phase 直到 ✅。
 
 ---
 
 ## 最终总结（仅在所有 Phase ✅ 后输出）
 
-汇总：
-
 - 实现了什么功能 / 解决了什么问题
-- 最终测试结果（通过数 / 总数）+ 覆盖率 %
-- Code Review 循环：共经历几轮、每轮修复了哪些 CRITICAL/HIGH 问题
-- 最终状态：[REVIEW_PASS]，无遗留 CRITICAL 或 HIGH 问题
-- 遗留的 MEDIUM/LOW 问题列表（供后续参考）
+- 最终测试结果：通过数/总数，覆盖率 %
+- Code Review 循环：共几轮，每轮修复了哪些 CRITICAL/HIGH 问题
+- 合并情况：是否发生过冲突、MERGE_RESULT 类型、是否重试（几次）、合并 commit hash
+- 最终状态：[REVIEW_PASS]，已合并到本地 `<MAIN_BRANCH>`，等待用户 push
+- 遗留 MEDIUM/LOW 问题列表（供后续参考）
