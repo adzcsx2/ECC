@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { applyInstallPlan } = require('../../scripts/lib/install/apply');
+const { applyInstallPlan, cleanupStaleManagedFiles } = require('../../scripts/lib/install/apply');
 
 const SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'install-apply.js');
 const DEFAULT_INSTALL_APPLY_TIMEOUT_MS = process.platform === 'win32' ? 30000 : 10000;
@@ -898,6 +898,349 @@ function runTests() {
     } finally {
       cleanup(homeDir);
       cleanup(projectDir);
+    }
+  })) passed++; else failed++;
+
+  // --- cleanupStaleManagedFiles tests ---
+
+  if (test('cleanupStaleManagedFiles: removes stale managed files not in new plan', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      // Create a "previously installed" stale file
+      const staleDir = path.join(tempDir, 'commands', 'ecc');
+      fs.mkdirSync(staleDir, { recursive: true });
+      const staleFilePath = path.join(staleDir, 'plan-doc-tr.md');
+      fs.writeFileSync(staleFilePath, '# old command');
+
+      // Old install state with the stale file operation
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan-doc-tr.md',
+          destinationPath: staleFilePath,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      // New plan does NOT include plan-doc-tr.md
+      const plan = {
+        installStatePath,
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: path.join(tempDir, 'commands', 'ecc', 'plan.md'),
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.ok(result.removedFiles.includes(staleFilePath), 'Should remove stale plan-doc-tr.md');
+      assert.ok(!fs.existsSync(staleFilePath), 'Stale file should no longer exist');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: removes empty directories after deleting stale files', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      // Create a stale file in a dedicated subdirectory
+      const staleDir = path.join(tempDir, 'commands', 'ecc', 'plan-doc-tr');
+      fs.mkdirSync(staleDir, { recursive: true });
+      const staleReadme = path.join(staleDir, 'README.md');
+      fs.writeFileSync(staleReadme, '# old readme');
+
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan-doc-tr/README.md',
+          destinationPath: staleReadme,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      const plan = {
+        installStatePath,
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: path.join(tempDir, 'commands', 'ecc', 'plan.md'),
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.ok(result.removedFiles.includes(staleReadme), 'Should remove stale README');
+      assert.ok(result.removedDirs.includes(staleDir), 'Should remove empty plan-doc-tr directory');
+      assert.ok(!fs.existsSync(staleDir), 'Empty directory should be cleaned up');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: does not remove files still in new plan', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      const planDir = path.join(tempDir, 'commands', 'ecc');
+      fs.mkdirSync(planDir, { recursive: true });
+      const planPath = path.join(planDir, 'plan.md');
+      fs.writeFileSync(planPath, '# plan');
+
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: planPath,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      const plan = {
+        installStatePath,
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: planPath,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.strictEqual(result.removedFiles.length, 0, 'Should not remove files still in plan');
+      assert.ok(fs.existsSync(planPath), 'plan.md should still exist');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: does not remove non-managed files', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      const userDir = path.join(tempDir, 'commands', 'ecc');
+      fs.mkdirSync(userDir, { recursive: true });
+      const userFilePath = path.join(userDir, 'my-custom-command.md');
+      fs.writeFileSync(userFilePath, '# my custom command');
+
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/my-custom-command.md',
+          destinationPath: userFilePath,
+          strategy: 'preserve-relative-path',
+          ownership: 'user',  // NOT managed
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      const plan = {
+        installStatePath,
+        operations: [],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.strictEqual(result.removedFiles.length, 0, 'Should not remove user-owned file');
+      assert.ok(fs.existsSync(userFilePath), 'User file should still exist');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: handles missing old install-state gracefully', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    try {
+      const plan = {
+        installStatePath: path.join(tempDir, 'nonexistent', 'install-state.json'),
+        operations: [],
+      };
+      const result = cleanupStaleManagedFiles(plan);
+      assert.deepStrictEqual(result, { removedFiles: [], removedDirs: [] });
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: scan-based removes orphaned files not in install-state', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      // Simulate the real scenario: the managed commands/ecc/ dir has a
+      // stale file on disk, but the install-state no longer mentions it
+      // (because a previous install already updated the state without
+      // cleaning up the file).
+      const managedDir = path.join(tempDir, 'commands', 'ecc');
+      fs.mkdirSync(managedDir, { recursive: true });
+
+      // A valid managed file (in the plan)
+      const planPath = path.join(managedDir, 'plan.md');
+      fs.writeFileSync(planPath, '# plan');
+
+      // A stale managed file (NOT in the plan, NOT in old state)
+      const stalePath = path.join(managedDir, 'plan-doc-tr.md');
+      fs.writeFileSync(stalePath, '# old command');
+
+      // Old install state has NO record of plan-doc-tr
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: planPath,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      // New plan also only has plan.md
+      const plan = {
+        targetRoot: tempDir,
+        installStatePath,
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'commands-core',
+          sourceRelativePath: 'commands/plan.md',
+          destinationPath: planPath,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.ok(result.removedFiles.includes(stalePath),
+        'Should remove stale plan-doc-tr.md via scan-based cleanup');
+      assert.ok(!fs.existsSync(stalePath), 'Stale file should no longer exist');
+      assert.ok(fs.existsSync(planPath), 'Valid plan.md should still exist');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('cleanupStaleManagedFiles: scan-based removes orphaned skill directory not in plan', () => {
+    const tempDir = createTempDir('install-apply-cleanup-');
+    const installStatePath = path.join(tempDir, 'install-state.json');
+
+    try {
+      const skillsDir = path.join(tempDir, 'skills', 'ecc');
+      fs.mkdirSync(skillsDir, { recursive: true });
+
+      // A valid skill directory (in the plan)
+      const validSkillDir = path.join(skillsDir, 'tdd-workflow');
+      fs.mkdirSync(validSkillDir, { recursive: true });
+      const validSkillFile = path.join(validSkillDir, 'SKILL.md');
+      fs.writeFileSync(validSkillFile, '# tdd skill');
+
+      // A stale skill directory (NOT in the plan)
+      const staleSkillDir = path.join(skillsDir, 'plan-doc-tr');
+      fs.mkdirSync(staleSkillDir, { recursive: true });
+      const staleSkillFile = path.join(staleSkillDir, 'SKILL.md');
+      fs.writeFileSync(staleSkillFile, '# old skill');
+
+      const oldState = {
+        schemaVersion: 'ecc.install.v1',
+        installedAt: new Date().toISOString(),
+        target: { id: 'test', root: tempDir, installStatePath },
+        request: { profile: null, modules: [], includeComponents: [], excludeComponents: [], legacyLanguages: [], legacyMode: false },
+        resolution: { selectedModules: ['test'], skippedModules: [] },
+        source: { repoVersion: null, repoCommit: null, manifestVersion: 1 },
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'skills-core',
+          sourceRelativePath: 'skills/tdd-workflow/SKILL.md',
+          destinationPath: validSkillFile,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+      fs.writeFileSync(installStatePath, JSON.stringify(oldState, null, 2));
+
+      const plan = {
+        targetRoot: tempDir,
+        installStatePath,
+        operations: [{
+          kind: 'copy-file',
+          moduleId: 'skills-core',
+          sourceRelativePath: 'skills/tdd-workflow/SKILL.md',
+          destinationPath: validSkillFile,
+          strategy: 'preserve-relative-path',
+          ownership: 'managed',
+          scaffoldOnly: false,
+        }],
+      };
+
+      const result = cleanupStaleManagedFiles(plan);
+      assert.ok(result.removedFiles.includes(staleSkillFile),
+        'Should remove stale SKILL.md via scan-based cleanup');
+      assert.ok(result.removedDirs.includes(staleSkillDir),
+        'Should remove empty stale skill directory');
+      assert.ok(!fs.existsSync(staleSkillDir), 'Stale skill dir should be gone');
+      assert.ok(fs.existsSync(validSkillDir), 'Valid skill dir should still exist');
+    } finally {
+      cleanup(tempDir);
     }
   })) passed++; else failed++;
 
