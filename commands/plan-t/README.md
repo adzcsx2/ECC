@@ -26,10 +26,12 @@
 
 ## 执行流程
 
-1. **Phase 1 — 规划**：调用 `/ecc:plan` 技能生成分步计划，等待用户确认（单次确认门）
-2. **Phase 2 — TDD 执行**：在独立 git worktree 内调用 1 个 `tdd-guide` 子代理（串行），RED→GREEN→IMPROVE→REPEAT，覆盖率 ≥80%
-3. **Phase 3 — Code Review 闭环**：在同一 worktree 内调用 `code-reviewer`，循环至 `[REVIEW_PASS]`（最多 3 轮），自动修复 CRITICAL 和 HIGH 问题
-4. **Phase 4 — CAS 原子合并**：锁外 rebase + AI 自动解冲突 + 测试验证；锁内 `flock` 独占 + 文件级 CAS + `git merge --ff-only`；合并后清理 worktree
+1. **Phase 1 — 规划**：调用 `/ecc:plan` 技能生成分步计划，等待用户确认（**唯一手动交互点**）
+2. **Phase 2 — TDD 执行**：在独立 git worktree 内调用 1 个 `tdd-guide` 子代理（串行），RED→GREEN→IMPROVE→REPEAT，覆盖率 ≥80%。完成后自检，通过后**自动进入 Phase 3**
+3. **Phase 3 — Code Review 闭环**：在同一 worktree 内调用 `code-reviewer`，循环至 `[REVIEW_PASS]`（最多 3 轮），自动修复 CRITICAL 和 HIGH 问题。通过后**自动进入 Phase 4**
+4. **Phase 4 — CAS 原子合并**：锁外 rebase + AI 自动解冲突 + 测试验证；锁内 `mkdir` 原子锁 + 文件级 CAS + `git merge --ff-only`；合并后清理 worktree
+
+> **自动推进**：Phase 1 确认后，Phase 2/3/4 全自动执行，不会中途停下询问用户。
 
 ## 特性
 

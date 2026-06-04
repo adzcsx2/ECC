@@ -16,6 +16,21 @@ description: Plan + TDD + Code Review (serial pipeline, single worktree isolatio
 
 ---
 
+## 自动推进原则
+
+**Phase 1 用户确认是整条流水线唯一的手动交互点。** 一旦用户确认通过：
+
+- Phase 2 → Phase 3 → Phase 4 **自动串行推进，绝不中途停下询问用户**
+- 每阶段完成后先自检/Code Review，有问题立即修复，修复后重新验证，验证通过直接进入下一阶段
+- 仅在以下情况允许停止并询问用户：
+  - Phase 3 Code Review 3 轮后仍有 CRITICAL/HIGH 问题未解决
+  - Phase 4 rebase 遇到语义冲突（同一逻辑两边都改了）
+  - Phase 4 CAS 重试耗尽（5 次）
+
+**禁止**在 Phase 2/3/4 的任何阶段边界处说"是否继续"或等待用户确认。
+
+---
+
 ## Plan-TR 执行流程
 
 任务: $ARGUMENTS
@@ -42,6 +57,8 @@ Skill tool with skill: "ecc:plan", args: $ARGUMENTS
 - "yes" / "确认" / "proceed" / "go ahead" / "可以" / "好的" / "同意"
 
 如果未检测到确认，停止并要求用户明确说"确认"。
+
+> **Phase 1 是唯一用户交互点。用户确认后，后续所有阶段（Phase 2/3/4）自动推进，不再询问用户是否继续。**
 
 ### === Phase 1 DONE ===
 
@@ -134,6 +151,17 @@ echo "✅ worktree 校验通过"
   `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|MagicMock|mock\.patch" <integration-test-dir>`；若无集成测试目录，tdd-guide 必须在报告中明示
 - [ ] **凭据缺失策略合规**：所有 skip 必须有明确文字原因，禁止静默 skip
 
+### Phase 2 自检（通过后自动进入 Phase 3，不等待用户）
+
+对 worktree 中的变更做快速自查：
+
+1. 运行 `git diff <MAIN_BRANCH>...HEAD --stat` 确认变更范围合理
+2. 检查是否有遗留的调试代码（console.log、debugger、print 等）
+3. 确认所有新增文件有对应测试覆盖
+
+**自检通过** → 立即自动进入 Phase 3，无需用户确认。
+**发现问题** → 在 worktree 内修复 → 重新运行测试 → 重新自检 → 通过后自动进入 Phase 3。
+
 ### === Phase 2 DONE ===
 
 ---
@@ -179,8 +207,8 @@ prompt: "cd <WORKTREE_PATH>
 
 **退出条件**：
 
-- 无 CRITICAL、无 HIGH → `[REVIEW_PASS]`，进入 Phase 4
-- 3 轮后仍有 CRITICAL/HIGH → 停止，向用户报告遗留问题，由用户决策是否继续
+- 无 CRITICAL、无 HIGH → `[REVIEW_PASS]` → **自动进入 Phase 4，不等待用户确认**
+- 3 轮后仍有 CRITICAL/HIGH → 停止，向用户报告遗留问题，由用户决策是否继续（这是自动推进的例外情况）
 
 ### === Phase 3 DONE ===
 
