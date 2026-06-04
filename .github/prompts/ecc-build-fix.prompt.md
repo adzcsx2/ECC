@@ -1,6 +1,7 @@
 ---
 agent: agent
 description: Systematically diagnose and fix build errors, type errors, or failing CI
+argument-hint: "[paste full error output | path/to/log]"
 ---
 
 # Build Error Resolution

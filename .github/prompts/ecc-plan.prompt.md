@@ -1,11 +1,17 @@
 ---
 agent: agent
-description: Create a phased implementation plan before writing any code
+description: Create a phased implementation plan before writing any code. WAIT for explicit confirmation before touching any code.
+argument-hint: "[feature description | path/to/*.prd.md]"
 ---
 
 # Implementation Planner
 
 Before writing any code for this feature/task, produce a structured plan.
+Accepts either a free-form requirement or a PRD markdown file path.
+
+> **CRITICAL — WAIT for confirmation.** After presenting the plan, STOP. Do NOT
+> write, edit, or scaffold any code until the user explicitly approves (e.g.
+> "yes" / "proceed"). If the user replies with changes, revise the plan and wait again.
 
 ## Steps
 
@@ -19,6 +25,7 @@ Before writing any code for this feature/task, produce a structured plan.
    - Phase 4: UI / consumer layer + E2E tests
 5. **Identify risks** — note anything that could block progress or cause regressions.
 6. **Define done** — list the exact acceptance criteria (tests passing, coverage ≥ 80%, no lint errors, docs updated).
+7. **Wait for confirmation** — present the plan and STOP. Get explicit user approval before writing any code.
 
 ## Output Format
 

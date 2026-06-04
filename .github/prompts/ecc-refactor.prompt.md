@@ -1,6 +1,7 @@
 ---
 agent: agent
 description: Clean up dead code, reduce duplication, and simplify structure without changing behavior
+argument-hint: "[selection | path/to/file | module]"
 ---
 
 # Refactor & Cleanup

@@ -1,6 +1,7 @@
 ---
 agent: agent
 description: Test-driven development cycle — write the test first, then implement
+argument-hint: "[behavior to implement | function/module name]"
 ---
 
 # TDD Workflow

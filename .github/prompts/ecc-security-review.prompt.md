@@ -1,6 +1,7 @@
 ---
 agent: agent
 description: Deep security analysis — OWASP Top 10, secrets, auth, injection, and dependency risks
+argument-hint: "[selection | file glob | leave empty for current branch changes]"
 ---
 
 # Security Review

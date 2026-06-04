@@ -1,6 +1,7 @@
 ---
 agent: agent
 description: Comprehensive code quality and security review of the selected code or recent changes
+argument-hint: "[selection | file glob | leave empty for current diff]"
 ---
 
 # Code Review

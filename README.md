@@ -12,12 +12,28 @@
 
 All commands install under the `/ecc:` namespace.
 
-| Command | Description | README |
-|---|---|---|
-| `/ecc:plan-r` | Plan → Execute → Code Review pipeline | [README](commands/plan-r/README.md) |
-| `/ecc:plan-t` | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md) |
-| `/ecc:plan-tr` | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md) |
-| `/ecc:plan-doc` | Generate task-scoped documentation set | [README](commands/plan-doc/README.md) |
+| Command         | Description                                          | README                                |
+| --------------- | ---------------------------------------------------- | ------------------------------------- |
+| `/ecc:plan-r`   | Plan → Execute → Code Review pipeline                | [README](commands/plan-r/README.md)   |
+| `/ecc:plan-t`   | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md)   |
+| `/ecc:plan-tr`  | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md)  |
+| `/ecc:plan-doc` | Generate task-scoped documentation set               | [README](commands/plan-doc/README.md) |
+
+### GitHub Copilot Prompts
+
+For VS Code GitHub Copilot Chat, the same ECC workflows ship as prompt files under `.github/prompts/`, each named `ecc-*.prompt.md`. VS Code exposes them by file name, so invoke them with the `/ecc-` prefix (Copilot does not support a `:` in prompt names). Prompt files require `"chat.promptFiles": true` in `.vscode/settings.json`.
+
+| Copilot Prompt         | When to use                     | Purpose                                                    |
+| ---------------------- | ------------------------------- | ---------------------------------------------------------- |
+| `/ecc-plan`            | Complex feature                 | Phased implementation plan                                 |
+| `/ecc-plan-doc`        | Multi-session, multi-phase work | Persist a task-scoped documentation set under `docs/plan/` |
+| `/ecc-tdd`             | New feature or bug fix          | Test-driven development cycle                              |
+| `/ecc-code-review`     | After writing code              | Quality and security review                                |
+| `/ecc-security-review` | Before a release                | Deep security analysis                                     |
+| `/ecc-build-fix`       | Build/CI failure                | Systematic error resolution                                |
+| `/ecc-refactor`        | Code maintenance                | Dead code cleanup and simplification                       |
+
+To use: open Copilot Chat, type `/` and select the prompt from the picker.
 
 ### Install Improvements
 
@@ -38,8 +54,8 @@ See [docs/FORK-SYNC.md](docs/FORK-SYNC.md) for instructions on pulling upstream 
 
 Recent upstream sync history. [View all changelogs →](docs/changelogs/)
 
-| Date | # | Description |
-|------|---|-------------|
+| Date       | #                                            | Description                                                                                                                                          |
+| ---------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-05-29 | [1](docs/changelogs/changelog-2026-05-29-1/) | Sync upstream: React track, AURA adapter, ECC 2.0 skill pack, social publisher, frontend a11y, Squish Memory MCP, hook fixes, German i18n (+20 more) |
 
 ---

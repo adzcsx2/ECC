@@ -12,12 +12,28 @@
 
 所有命令安装在 `/ecc:` 命名空间下。
 
-| 命令 | 说明 | README |
-|---|---|---|
-| `/ecc:plan-r` | 规划 → 执行 → 代码审查 三阶段流水线 | [README](commands/plan-r/README.md) |
-| `/ecc:plan-t` | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-t/README.md) |
-| `/ecc:plan-tr` | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-tr/README.md) |
-| `/ecc:plan-doc` | 生成任务级完整文档集 | [README](commands/plan-doc/README.md) |
+| 命令            | 说明                                          | README                                |
+| --------------- | --------------------------------------------- | ------------------------------------- |
+| `/ecc:plan-r`   | 规划 → 执行 → 代码审查 三阶段流水线           | [README](commands/plan-r/README.md)   |
+| `/ecc:plan-t`   | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-t/README.md)   |
+| `/ecc:plan-tr`  | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-tr/README.md)  |
+| `/ecc:plan-doc` | 生成任务级完整文档集                          | [README](commands/plan-doc/README.md) |
+
+### GitHub Copilot Prompts
+
+VS Code 的 GitHub Copilot Chat 通过 `.github/prompts/` 下的 prompt 文件提供同样的 ECC 工作流，文件统一命名为 `ecc-*.prompt.md`。VS Code 按文件名暴露调用名，因此用 `/ecc-` 前缀调用（Copilot 的 prompt 名称不支持 `:`）。使用 prompt 文件需在 `.vscode/settings.json` 中设置 `"chat.promptFiles": true`。
+
+| Copilot Prompt         | 何时使用           | 用途                               |
+| ---------------------- | ------------------ | ---------------------------------- |
+| `/ecc-plan`            | 复杂功能           | 分阶段实现计划                     |
+| `/ecc-plan-doc`        | 多会话、多阶段工作 | 在 `docs/plan/` 下生成任务级文档集 |
+| `/ecc-tdd`             | 新功能或 bug 修复  | 测试驱动开发循环                   |
+| `/ecc-code-review`     | 写完代码后         | 质量与安全审查                     |
+| `/ecc-security-review` | 发布前             | 深度安全分析                       |
+| `/ecc-build-fix`       | 构建/CI 失败       | 系统化错误排查                     |
+| `/ecc-refactor`        | 代码维护           | 死代码清理与简化                   |
+
+使用方式：打开 Copilot Chat，输入 `/` 并从候选列表中选择对应 prompt。
 
 ### 安装优化
 
@@ -38,8 +54,8 @@
 
 最近的上游同步记录。[查看全部 changelog →](docs/changelogs/)
 
-| 日期 | 编号 | 说明 |
-|------|------|------|
+| 日期       | 编号                                         | 说明                                                                                                                                                |
+| ---------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-05-29 | [1](docs/changelogs/changelog-2026-05-29-1/) | 同步上游：React 语言轨道、AURA 适配器、ECC 2.0 skill pack、social publisher、frontend a11y、Squish Memory MCP、hook 修复、德语本地化（+20 commits） |
 
 ---
