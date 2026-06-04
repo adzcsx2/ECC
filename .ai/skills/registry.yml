@@ -1,0 +1,10 @@
+id: project-skills
+name: project-skills
+purpose: Canonical project-local skill governance
+origin: dt:init bootstrap
+status: active
+overlaps_with: []
+merged_into: null
+last_reviewed_at: "2026-06-04"
+tool_exports: follow_configured_tools
+update_policy: manual_confirm
