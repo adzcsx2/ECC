@@ -18,16 +18,34 @@ description: Plan + TDD + Code Review (serial pipeline, single worktree isolatio
 
 ## 自动推进原则
 
-**Phase 1 用户确认是整条流水线唯一的手动交互点。** 一旦用户确认通过：
+**Phase 1 用户确认是整条流水线唯一的手动交互点。** 一旦用户确认通过，必须一口气把 Phase 2/3/4 全部执行完，中途不得以任何理由停下来等待用户。
+
+### 必须连续执行（不得停顿）
 
 - Phase 2 → Phase 3 → Phase 4 **自动串行推进，绝不中途停下询问用户**
+- **Phase 内部的子步骤之间同样不得停顿**：TDD 计划项（如 P1.1 → P1.2 → P1.3 …）、各阶段的自检、Code Review 的每一轮，全部连续执行，做完一项立即做下一项
 - 每阶段完成后先自检/Code Review，有问题立即修复，修复后重新验证，验证通过直接进入下一阶段
-- 仅在以下情况允许停止并询问用户：
-  - Phase 3 Code Review 3 轮后仍有 CRITICAL/HIGH 问题未解决
-  - Phase 4 rebase 遇到语义冲突（同一逻辑两边都改了）
-  - Phase 4 CAS 重试耗尽（5 次）
 
-**禁止**在 Phase 2/3/4 的任何阶段边界处说"是否继续"或等待用户确认。
+### "更新进度 ≠ 停顿点"（最常见的错误停车原因）
+
+以下动作都只是**过程记录**，做完后必须**立即**继续下一步，**绝不允许**在此处停下来等待用户回复：
+
+- 更新执行文档（如 `00-执行文档.md`）、勾选完成项（如 P1.1-P1.3 全部勾选）
+- 移动/更新进度指针（如"进度指针指向 Phase 2"）
+- 追加执行日志、汇报阶段性进展
+- 完成某个 TDD 子项、跑完一轮测试、写完一次 commit
+
+**判定规则**：如果你正准备输出一段"进度已更新/已勾选/指针已指向下一步"的话术——这恰恰说明下一步已经明确，**必须直接去做下一步**，而不是把这段话当作交付物停下来。
+
+### 唯一允许停止的封闭清单（除此之外一律继续）
+
+仅在以下三种情况允许停止并询问用户，**其他任何情况都必须继续执行**：
+
+1. Phase 3 Code Review 3 轮后仍有 CRITICAL/HIGH 问题未解决
+2. Phase 4 rebase 遇到真正的语义冲突（同一逻辑两边都改了）
+3. Phase 4 CAS 重试耗尽（5 次）
+
+**禁止**在 Phase 2/3/4 的任何阶段边界或子步骤边界处说"是否继续""请确认"或等待用户确认。除上面三条外，遇到任何需要决策的小问题，按本命令既定规则自行处理后继续。
 
 ---
 
@@ -95,7 +113,10 @@ TASK_SLUG=$(printf "%s" "$ARGUMENTS" \
 # 加入 PID 防止同秒并发时分支名冲突
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)-$$
 BRANCH_NAME="ecc/${TASK_SLUG}-${TIMESTAMP}"
-WORKTREE_PATH="${MAIN_REPO}/../$(basename ${MAIN_REPO})-ecc-worktrees/${TASK_SLUG}-${TIMESTAMP}"
+# ⚠ worktree 必须放在项目内部，绝不污染外部父目录。
+# 统一放在主仓内的 .ecc-worktrees/ 目录下（该目录会被强制写入 .gitignore，不会提交/推送到远程）。
+WORKTREE_ROOT="${MAIN_REPO}/.ecc-worktrees"
+WORKTREE_PATH="${WORKTREE_ROOT}/${TASK_SLUG}-${TIMESTAMP}"
 echo "RECORDED_MAIN_REPO=$MAIN_REPO"
 echo "RECORDED_MAIN_BRANCH=$MAIN_BRANCH"
 echo "RECORDED_BRANCH_NAME=$BRANCH_NAME"
@@ -103,6 +124,26 @@ echo "RECORDED_WORKTREE_PATH=$WORKTREE_PATH"
 ```
 
 主对话必须从 stdout 提取并记录这四个字面值，后续所有 bash 块中用实际值替换 `<MAIN_REPO>`、`<MAIN_BRANCH>`、`<BRANCH_NAME>`、`<WORKTREE_PATH>`。
+
+**Gitignore 守卫（创建 worktree 前必须先执行，确保 worktree 目录不会被提交/推送到远程）**：
+
+```bash
+# 在创建 worktree 之前，先确保 .gitignore 已忽略 .ecc-worktrees/
+set -e
+GITIGNORE="<MAIN_REPO>/.gitignore"
+IGNORE_ENTRY=".ecc-worktrees/"
+# 精确匹配整行（忽略首尾空白），避免重复写入
+if [ -f "$GITIGNORE" ] && grep -qxE "[[:space:]]*${IGNORE_ENTRY}[[:space:]]*" "$GITIGNORE"; then
+  echo "✅ .gitignore 已包含 ${IGNORE_ENTRY}，无需修改"
+else
+  # 若文件存在且末尾无换行，先补一个换行再追加，避免与上一行粘连
+  if [ -f "$GITIGNORE" ] && [ -n "$(tail -c1 "$GITIGNORE")" ]; then
+    printf '\n' >> "$GITIGNORE"
+  fi
+  printf '\n# ECC plan-t 隔离 worktree（本地临时，禁止提交/推送）\n%s\n' "$IGNORE_ENTRY" >> "$GITIGNORE"
+  echo "✅ 已将 ${IGNORE_ENTRY} 写入 .gitignore"
+fi
+```
 
 ```bash
 # 建立隔离 worktree + 在 worktree 分支上打回滚锚点标签
@@ -123,14 +164,19 @@ prompt: "在以下 worktree 目录中执行严格 TDD: <WORKTREE_PATH>
 
          按照以下计划执行: [复制 Phase 1 最终计划]
 
-         必须遵守 RED→GREEN→IMPROVE→REPEAT 循环：
-         1. RED: 为每个计划项先写失败测试，运行确认失败（输出失败截图/日志）
+         ⚠ 一次性完成计划中的【全部】计划项，不要做完一项就返回。
+         在所有计划项都完成、测试全绿、覆盖率达标之前，禁止结束本次 agent 调用。
+         更新执行文档 / 勾选完成项 / 移动进度指针只是过程记录，做完后立即继续下一项，绝不停下等待。
+
+         必须遵守 RED→GREEN→IMPROVE→REPEAT 循环（对每一个计划项依次执行）：
+         1. RED: 为该计划项先写失败测试，运行确认失败（输出失败日志）
          2. GREEN: 写最小实现使测试通过，运行确认通过
          3. IMPROVE: 重构，保持测试绿灯
+         4. REPEAT: 立即进入下一个计划项，直到全部完成
 
          覆盖率要求: ≥80%（安全关键/金融逻辑: 100%）
-         完成所有工作后执行 git add -A && git commit（至少一次）。
-         报告中必须包含：失败测试列表（RED 阶段截图）、通过测试数量、覆盖率百分比。"
+         完成所有计划项后执行 git add -A && git commit（至少一次）。
+         报告中必须包含：已完成计划项清单、失败测试列表（RED 阶段日志）、通过测试数量、覆盖率百分比。"
 ```
 
 **Phase 2 完成校验（tdd-guide 返回后立刻执行）**：
@@ -148,7 +194,7 @@ echo "✅ worktree 校验通过"
 - [ ] 所有测试通过，覆盖率 ≥ 80%
 - [ ] tdd-guide 报告中包含 RED 阶段失败测试证据
 - [ ] **集成测试无虚假 mock**：识别集成测试目录并运行
-  `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|MagicMock|mock\.patch" <integration-test-dir>`；若无集成测试目录，tdd-guide 必须在报告中明示
+      `grep -rEn "jest\.mock|vi\.mock|sinon\.(stub|mock)|MagicMock|mock\.patch" <integration-test-dir>`；若无集成测试目录，tdd-guide 必须在报告中明示
 - [ ] **凭据缺失策略合规**：所有 skip 必须有明确文字原因，禁止静默 skip
 
 ### Phase 2 自检（通过后自动进入 Phase 3，不等待用户）
@@ -199,11 +245,11 @@ prompt: "cd <WORKTREE_PATH>
 
 循环记录（主对话维护）：
 
-| 轮次 | CRITICAL | HIGH | MEDIUM | LOW | 结果 |
-|------|----------|------|--------|-----|------|
-| #1 | ? | ? | ? | ? | PASS/FAIL |
-| #2（如有）| ? | ? | ? | ? | PASS/FAIL |
-| #3（如有）| ? | ? | ? | ? | PASS/FAIL |
+| 轮次       | CRITICAL | HIGH | MEDIUM | LOW | 结果      |
+| ---------- | -------- | ---- | ------ | --- | --------- |
+| #1         | ?        | ?    | ?      | ?   | PASS/FAIL |
+| #2（如有） | ?        | ?    | ?      | ?   | PASS/FAIL |
+| #3（如有） | ?        | ?    | ?      | ?   | PASS/FAIL |
 
 **退出条件**：
 
@@ -398,12 +444,12 @@ echo "    git push origin <MAIN_BRANCH>"
 
 无论成功或失败，命令结束前必须输出以下表格：
 
-| Phase | 状态 | 证据 |
-|-------|------|------|
-| **Phase 1: Plan** | ✅/❌ | 用户确认原文 + 任务计划内容摘要 |
-| **Phase 2: TDD** | ✅/❌ | tdd-guide agent 调用 + worktree 路径 + 测试通过数 + 覆盖率 % + RED 阶段证据 |
-| **Phase 3: Review Loop** | ✅/❌ | 总轮次 + 每轮 CRITICAL/HIGH 数 + 最终 [REVIEW_PASS] |
-| **Phase 4: CAS 合并** | ✅/❌ | BASE/NOW 值 + MERGE_RESULT + 是否重试（共几次）+ 合并 commit hash |
+| Phase                    | 状态  | 证据                                                                        |
+| ------------------------ | ----- | --------------------------------------------------------------------------- |
+| **Phase 1: Plan**        | ✅/❌ | 用户确认原文 + 任务计划内容摘要                                             |
+| **Phase 2: TDD**         | ✅/❌ | tdd-guide agent 调用 + worktree 路径 + 测试通过数 + 覆盖率 % + RED 阶段证据 |
+| **Phase 3: Review Loop** | ✅/❌ | 总轮次 + 每轮 CRITICAL/HIGH 数 + 最终 [REVIEW_PASS]                         |
+| **Phase 4: CAS 合并**    | ✅/❌ | BASE/NOW 值 + MERGE_RESULT + 是否重试（共几次）+ 合并 commit hash           |
 
 任何 ❌ → 命令失败，补做对应 Phase 直到 ✅。
 

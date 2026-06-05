@@ -81,6 +81,9 @@ marketing/
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
+# ECC plan-tr 隔离 worktree（本地临时，禁止提交/推送）
+.ecc-worktrees/
+
 # Temporary files
 tmp/
 temp/
