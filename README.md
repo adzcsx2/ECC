@@ -18,6 +18,7 @@ All commands install under the `/ecc:` namespace.
 | `/ecc:plan-t`   | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md)   |
 | `/ecc:plan-tr`  | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md)  |
 | `/ecc:plan-doc` | Generate task-scoped documentation set               | [README](commands/plan-doc/README.md) |
+| `/ecc:execute-doc` | Execute a plan-doc execution document phase by phase (same-model subagent per phase, main-agent audits, auto-advance) | [README](commands/execute-doc/README.md) |
 | `/ecc:brainstorming` | Pre-implementation design exploration; hands the approved design to /ecc:plan | [README](commands/brainstorming/README.md) |
 
 ### GitHub Copilot Prompts
