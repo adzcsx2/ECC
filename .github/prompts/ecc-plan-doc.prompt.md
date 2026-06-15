@@ -109,10 +109,11 @@ Only after the user confirms:
 5. Cross-link: README links to all; `00` links to `01-03`; each numbered doc has prev/next links.
 
 ### Stage 5 — Post-generation
-1. Report total line count per file.
-2. Append a link to the new task subdir under the `Plan docs` section of `docs/README.md` (if such a section exists; otherwise suggest adding one).
-3. Remind the user that `.cursor/rules/*` and top-level usage guides were NOT modified.
-4. Print the first execution prompt the user should give a fresh AI session.
+1. **Read-back verification (防丢失)**: list the target dir, confirm every expected file (5 standard / 7 test-mode) exists on disk and is non-empty. A formatter or sync hook can silently drop a file (observed: `00-执行文档.md` disappearing). Regenerate any missing/empty file. Print `✓ <file>` or `✗ <file> 缺失，已补写`.
+2. Report total line count per file.
+3. Append a link to the new task subdir under the `Plan docs` section of `docs/README.md` (if such a section exists; otherwise suggest adding one).
+4. Remind the user that `.cursor/rules/*` and top-level usage guides were NOT modified.
+5. Print the first execution prompt the user should give a fresh AI session.
 
 ## Output Structure
 
@@ -151,6 +152,21 @@ This is what makes `plan-doc` different from `plan`. It MUST contain:
 5. **Execution log** (reverse-chronological table, appended on every state change).
 
 6. **Execution prompt template** to hand to a fresh AI session.
+
+### Checklist item granularity (low-capability-AI safe) — CRITICAL
+
+The quality bar: a **weak / low-capability AI must execute each item without guessing**. "实现 BLE 自愈" is a FAILURE (it's a goal, not a step). Every `P<N>.<M>` item MUST explicitly answer all four:
+
+1. **读什么** — exact file(s) + symbol/method/section to read first.
+2. **改什么** — precise insertion point described semantically (method name, neighbor field, "放在 X 之后"), plus pointer to the matching template in `02-开发规范.md`; state which file is touched.
+3. **怎么验证** — exact command(s) to run and what "green" means.
+4. **完成判据** — observable binary condition to tick the box.
+
+Guardrails to bake in:
+- Line numbers are hints, not coordinates: pair every line number with a stable symbol/section anchor + a "line numbers drift, locate by symbol" note.
+- The first item of every phase (`P<N>.1`) is always read-and-confirm (read current state, write findings to log, no code change).
+- List forbidden actions inline at risky steps ("不要重连蓝牙", "不要删 try/finally").
+- One item = one reviewable change; split if larger than ~1 PR.
 
 ### Forbidden in 00-执行文档.md
 - Do not leave the progress pointer outside the HTML comment anchors (tools rely on them).

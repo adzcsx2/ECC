@@ -1,6 +1,6 @@
 ---
-description: "Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log with progress pointer and subagent plan, architecture design, dev guide, roadmap, and optional test docs. Prefer /ecc:plan for execution, fall back to plain-language resume prompt if declined."
-argument-hint: "<task-slug> [test] | [test] <task-slug>"
+description: 'Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log with progress pointer and subagent plan, architecture design, dev guide, roadmap, and optional test docs. Prefer /ecc:plan for execution, fall back to plain-language resume prompt if declined.'
+argument-hint: '<task-slug> [test] | [test] <task-slug>'
 ---
 
 > Language Requirements
@@ -244,14 +244,16 @@ Only after Stage 3 confirmation (Stage 3.5 wait is skipped in default fast path)
 
 After writing all files:
 
-1. Report total line count per file
-2. Append an entry to `docs/README.md` under its `计划文档 / Plan docs` section linking to the new task subdir (if such a section exists; otherwise suggest adding one)
-3. Remind the user that `.cursor/rules/*` and top-level usage guides were NOT modified
-4. Print the first execution prompt the user should give the AI, after applying Stage 2.5 command resolution
+1. **Read-back verification (防丢失)**: after all Write calls, list the target directory and confirm every expected file (5 standard, or 7 in test mode) is present on disk with non-empty content. If any file is missing or empty (e.g. dropped by a formatter / sync hook / failed write), regenerate the missing file before proceeding. Print one line per file: `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
+2. Report total line count per file
+3. Append an entry to `docs/README.md` under its `计划文档 / Plan docs` section linking to the new task subdir (if such a section exists; otherwise suggest adding one)
+4. Remind the user that `.cursor/rules/*` and top-level usage guides were NOT modified
+5. Print the first execution prompt the user should give the AI, after applying Stage 2.5 command resolution
 
 ## Output Structure
 
 目录命名规则：`docs/plan/<task-slug>-<YYYY-MM-DD>/`
+
 - `<task-slug>`：用户提供的英文 kebab-case 标识符
 - `<YYYY-MM-DD>`：生成当天的本地日期，例如 `2026-05-06`
 - 示例：`docs/plan/ble-multi-device-fix-2026-05-06/`
@@ -299,6 +301,24 @@ This is the file that makes `plan-doc` different from a plain execution command 
 
 6. **Execution prompt template** users can hand to a fresh AI session
 
+### Checklist item granularity (low-capability-AI safe)
+
+The single most important quality bar for `00-执行文档.md` is that a **weak / low-capability AI can execute each item without guessing**. A checklist item like "实现 BLE 自愈" is a FAILURE — it is a goal, not an executable step.
+
+Every `P<N>.<M>` item MUST be written so it answers all four of these, explicitly:
+
+1. **读什么 (Read what)** — the exact file(s) and the symbol / method / section to read first (e.g. "通读 `lib/core/audio/ble_audio_source.dart` 的 `start()` 与 `_rawAudioSubscription`"). Never assume the AI already knows the code.
+2. **改什么 (Change what)** — the precise insertion point described **semantically** (method name, neighboring field, "放在 `start()` 之后、`stop()` 之前"), plus a pointer to the matching template in `02-开发规范.md`. State which file is touched.
+3. **怎么验证 (How to verify)** — the exact command(s) to run (e.g. `flutter analyze <files>` / `flutter test <dir>`) and what "green" looks like.
+4. **完成判据 (Done criteria)** — an observable, binary condition that decides whether the box can be ticked (e.g. "analyze 0 error 且模拟丢流后日志出现『重订阅完成』").
+
+Additional low-capability-AI guardrails the generator MUST bake in:
+
+- **Line numbers are hints, not coordinates.** Every reference to a line number MUST be paired with a stable anchor (method/symbol/section name) and an explicit note that line numbers drift — the executor must locate by symbol, never blind-edit by line.
+- **First item of every phase is always a read-and-confirm item** (`P<N>.1`): read current state, write one paragraph of findings into the execution log. No code change in the first item.
+- **List forbidden actions inline** where a step is risky ("不要重连蓝牙", "不要删 try/finally"), do not rely on the AI to infer them.
+- **One item = one reviewable change.** If a step needs more than ~1 PR worth of edits, split it into `P<N>.<M>` sub-items.
+
 ### Placeholder conventions
 
 - `{{TASK_SLUG}}` — slug only, no date, used for descriptive task name references
@@ -326,8 +346,8 @@ The subagent plan embedded in `00-执行文档.md` must include a `Parallel Grou
 
 ### Flutter recommended subagents
 
-| Role                   | Recommended                                     | Parallel Group |
-| ---------------------- | ----------------------------------------------- | -------------- |
+| Role                   | Recommended                                     | Parallel Group              |
+| ---------------------- | ----------------------------------------------- | --------------------------- |
 | Coding                 | main-agent                                      | `<group label, e.g. A / B>` |
 | Build fix              | `ecc:dart-build-resolver`                       | serial — do not parallelize |
 | Review                 | `ecc:flutter-reviewer`                          | `<group label, e.g. A / B>` |
@@ -335,16 +355,16 @@ The subagent plan embedded in `00-执行文档.md` must include a `Parallel Grou
 
 ### Android recommended subagents
 
-| Role        | Recommended                                              | Parallel Group |
-| ----------- | -------------------------------------------------------- | -------------- |
-| Coding      | main-agent                                               | `<group label, e.g. A / B>` |
-| Build fix   | `ecc:kotlin-build-resolver` or `ecc:java-build-resolver` | serial — do not parallelize |
-| Review      | `ecc:kotlin-reviewer` or `ecc:java-reviewer`             | `<group label, e.g. A / B>` |
+| Role      | Recommended                                              | Parallel Group              |
+| --------- | -------------------------------------------------------- | --------------------------- |
+| Coding    | main-agent                                               | `<group label, e.g. A / B>` |
+| Build fix | `ecc:kotlin-build-resolver` or `ecc:java-build-resolver` | serial — do not parallelize |
+| Review    | `ecc:kotlin-reviewer` or `ecc:java-reviewer`             | `<group label, e.g. A / B>` |
 
 ### Web / Node / React
 
-| Role      | Recommended                | Parallel Group |
-| --------- | -------------------------- | -------------- |
+| Role      | Recommended                | Parallel Group              |
+| --------- | -------------------------- | --------------------------- |
 | Coding    | main-agent                 | `<group label, e.g. A / B>` |
 | Build fix | `ecc:build-error-resolver` | serial — do not parallelize |
 | Review    | `ecc:typescript-reviewer`  | `<group label, e.g. A / B>` |
@@ -352,24 +372,24 @@ The subagent plan embedded in `00-执行文档.md` must include a `Parallel Grou
 
 ### Python
 
-| Role    | Recommended           | Parallel Group |
-| ------- | --------------------- | -------------- |
+| Role    | Recommended           | Parallel Group              |
+| ------- | --------------------- | --------------------------- |
 | Coding  | main-agent            | `<group label, e.g. A / B>` |
 | Review  | `ecc:python-reviewer` | `<group label, e.g. A / B>` |
 | Testing | `ecc:tdd-guide`       | `<group label, e.g. A / B>` |
 
 ### Java / Spring Boot
 
-| Role      | Recommended               | Parallel Group |
-| --------- | ------------------------- | -------------- |
+| Role      | Recommended               | Parallel Group              |
+| --------- | ------------------------- | --------------------------- |
 | Coding    | main-agent                | `<group label, e.g. A / B>` |
 | Build fix | `ecc:java-build-resolver` | serial — do not parallelize |
 | Review    | `ecc:java-reviewer`       | `<group label, e.g. A / B>` |
 
 ### Generic (unknown stack)
 
-| Role     | Recommended             | Parallel Group |
-| -------- | ----------------------- | -------------- |
+| Role     | Recommended             | Parallel Group              |
+| -------- | ----------------------- | --------------------------- |
 | Coding   | main-agent              | `<group label, e.g. A / B>` |
 | Review   | `ecc:code-reviewer`     | `<group label, e.g. A / B>` |
 | Security | `ecc:security-reviewer` | serial — do not parallelize |
@@ -430,6 +450,10 @@ When in doubt:
 - Letting the generation model re-read every audit source by default instead of using the Stage 3.5 `Generation Handoff`
 - Defaulting to `sonnet` for routine template filling that `haiku` can handle
 - Defaulting to `haiku` when the task still needs substantial synthesis for architecture or QA documents
+- Writing abstract / goal-level checklist items (e.g. "实现 X", "修复 Y") instead of executable `读什么/改什么/怎么验证/完成判据` items — a low-capability AI must be able to run each step without guessing
+- Referencing line numbers in checklists or templates without pairing them with a stable symbol/section anchor and a "line numbers drift" note
+- Skipping the read-and-confirm first item (`P<N>.1`) of a phase and jumping straight to code changes
+- Finishing generation without the Stage 5 read-back verification — never assume a Write succeeded just because the tool returned; a formatter or sync hook can drop a file (observed: `00-执行文档.md` silently disappearing)
 
 ## Examples
 
