@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "totalCommands": 79,
+  "totalCommands": 85,
   "commands": [
     {
       "command": "aside",
@@ -19,6 +19,15 @@
       "allAgents": [],
       "skills": [],
       "path": "commands/auto-update.md"
+    },
+    {
+      "command": "brainstorming",
+      "description": "动手前的设计探索——逐个澄清需求、提出 2-3 个带权衡的方案、分节呈现设计并获用户批准,然后把已批准的需求交给 /ecc:plan 生成实现计划。适用于任何创意或实现工作(新功能、新组件、行为修改)。设计获批准前禁止任何实现动作。",
+      "type": "testing",
+      "primaryAgents": [],
+      "allAgents": [],
+      "skills": [],
+      "path": "commands/brainstorming.md"
     },
     {
       "command": "build-fix",
@@ -121,6 +130,15 @@
         "continuous-learning-v2"
       ],
       "path": "commands/evolve.md"
+    },
+    {
+      "command": "execute-doc",
+      "description": "Execute a plan-doc execution document (00-执行文档.md) phase by phase — dispatch a same-model subagent per phase, main-agent audits each result, auto-advance until all phases complete. No mid-run confirmations.",
+      "type": "testing",
+      "primaryAgents": [],
+      "allAgents": [],
+      "skills": [],
+      "path": "commands/execute-doc.md"
     },
     {
       "command": "fastapi-review",
@@ -491,6 +509,15 @@
       "path": "commands/multi-workflow.md"
     },
     {
+      "command": "plan-doc",
+      "description": "Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log with progress pointer and subagent plan, architecture design, dev guide, roadmap, and optional test docs. Prefer /ecc:plan for execution, fall back to plain-language resume prompt if declined.",
+      "type": "orchestration",
+      "primaryAgents": [],
+      "allAgents": [],
+      "skills": [],
+      "path": "commands/plan-doc.md"
+    },
+    {
       "command": "plan-prd",
       "description": "Generate a lean, problem-first PRD and hand off to /plan for implementation planning.",
       "type": "testing",
@@ -498,6 +525,49 @@
       "allAgents": [],
       "skills": [],
       "path": "commands/plan-prd.md"
+    },
+    {
+      "command": "plan-r",
+      "description": "Plan first (user confirms), execute, then auto code review",
+      "type": "review",
+      "primaryAgents": [
+        "code-reviewer"
+      ],
+      "allAgents": [
+        "code-reviewer"
+      ],
+      "skills": [],
+      "path": "commands/plan-r.md"
+    },
+    {
+      "command": "plan-t",
+      "description": "Plan + TDD + Code Review (serial pipeline, single worktree isolation, mkdir-lock CAS merge)",
+      "type": "testing",
+      "primaryAgents": [
+        "code-reviewer",
+        "tdd-guide"
+      ],
+      "allAgents": [
+        "code-reviewer",
+        "tdd-guide"
+      ],
+      "skills": [],
+      "path": "commands/plan-t.md"
+    },
+    {
+      "command": "plan-tr",
+      "description": "Plan + TDD + Code Review (serial pipeline, single worktree isolation, mkdir-lock CAS merge)",
+      "type": "testing",
+      "primaryAgents": [
+        "code-reviewer",
+        "tdd-guide"
+      ],
+      "allAgents": [
+        "code-reviewer",
+        "tdd-guide"
+      ],
+      "skills": [],
+      "path": "commands/plan-tr.md"
     },
     {
       "command": "plan",
@@ -864,19 +934,27 @@
     "byType": {
       "build": 2,
       "general": 8,
-      "orchestration": 6,
+      "orchestration": 7,
       "planning": 2,
       "refactoring": 1,
-      "review": 9,
-      "testing": 51
+      "review": 10,
+      "testing": 55
     },
     "topAgents": [
+      {
+        "agent": "code-reviewer",
+        "count": 3
+      },
       {
         "agent": "dart-build-resolver",
         "count": 2
       },
       {
         "agent": "flutter-reviewer",
+        "count": 2
+      },
+      {
+        "agent": "tdd-guide",
         "count": 2
       },
       {
@@ -901,14 +979,6 @@
       },
       {
         "agent": "kotlin-reviewer",
-        "count": 1
-      },
-      {
-        "agent": "planner",
-        "count": 1
-      },
-      {
-        "agent": "python-reviewer",
         "count": 1
       }
     ],

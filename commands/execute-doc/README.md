@@ -12,7 +12,7 @@
 - 主代理独占 progress pointer 更新与 phase 切换决策，子代理只负责实现
 - 每个 phase 完成后主代理主动审计（改动范围、上游守卫、调试残留、注释语言、质量门）
 - 审计通过自动进入下一 phase；未通过则自行修复或开修复子代理，最多 3 轮
-- 仅在三种硬停情况停下：文档校验失败、单 phase 3 轮未过质量门、触及上游 sources of truth
+- 仅在四种硬停情况停下：文档校验失败、单 phase 3 轮未过质量门、触及上游 sources of truth、context 接近上限（主代理自主完成当前 phase 并输出 Resume 续接指令，禁止疑问句）
 
 ## 用法
 
@@ -51,7 +51,28 @@
 - 「更新进度 / 追加日志」是过程记录，不是停顿交付物
 - 所有代码注释与 commit message 必须使用中文
 - 不做 worktree 隔离与 CAS 合并：直接在主仓执行，断点恢复由 progress pointer 保证；本地 commit 完成后，推送由用户手动决定
-- 唯一允许停下（封闭清单）：文档校验失败、单 phase 3 轮未过质量门、触及上游 sources of truth
+- 唯一允许停下（封闭清单 4 条）：文档校验失败、单 phase 3 轮未过质量门、触及上游 sources of truth、context 接近上限（主代理自主完成当前 phase 并输出 Resume 续接指令后停止，禁止任何疑问句）
+
+## 脚本驱动模式（编排器）
+
+除交互式 `/ecc:execute-doc` 命令外，本命令提供**脚本驱动编排器**，根治纯 prompt 自动推进在长会话下违规停车的缺陷：
+
+```
+node scripts/execute-doc.js <执行文档路径或目录> [options]
+```
+
+推进控制权由 node 脚本独占——每个 phase 派发 headless 子代理（复用 `scripts/claw.js` 的 `askClaude`）执行编码，子代理返回后脚本亲自跑硬质量门（git 干净 / diff 范围 / 上游守卫 / 测试退出码），通过则脚本独占更新 progress pointer 并推进下一 phase。LLM 在子会话里无法让主流程停下询问用户。
+
+常用选项：
+
+- `--phase <N>`：起点 phase（默认读 progress pointer）
+- `--model <name>`：覆盖模型（默认读 `~/.claude/settings.json` 的 model 字段或 `$CLAUDE_MODEL`，继承主代理模型）
+- `--test-cmd <cmd>`：每个 phase 后运行的测试命令
+- `--upstream <f1,f2>`：上游 sources of truth（触碰即停，逗号分隔）
+- `--max-retries <N>`：单 phase 最大重试（默认 3）
+- `--dry-run`：仅解析打印计划，不执行
+
+何时用脚本模式：任务 phase 多、单会话 context 撑不住、或要求零停车时。短任务用交互式 `/ecc:execute-doc` 即可。
 
 ## 与其他命令的关系
 

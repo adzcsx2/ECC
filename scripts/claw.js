@@ -76,6 +76,7 @@ function loadECCContext(skillList) {
 }
 
 function buildPrompt(systemPrompt, history, userMessage) {
+  if (!systemPrompt && !history) return userMessage;
   const parts = [];
   if (systemPrompt) parts.push(`=== SYSTEM CONTEXT ===\n${systemPrompt}\n`);
   if (history) parts.push(`=== CONVERSATION HISTORY ===\n${history}\n`);
@@ -83,9 +84,15 @@ function buildPrompt(systemPrompt, history, userMessage) {
   return parts.join('\n');
 }
 
-function askClaude(systemPrompt, history, userMessage, model) {
+function askClaude(systemPrompt, history, userMessage, model, options = {}) {
   const fullPrompt = buildPrompt(systemPrompt, history, userMessage);
   const args = [];
+  if (options.dangerouslySkipPermissions) {
+    args.push('--dangerously-skip-permissions');
+  }
+  if (Array.isArray(options.extraArgs)) {
+    args.push(...options.extraArgs);
+  }
   if (model) {
     args.push('--model', model);
   }
