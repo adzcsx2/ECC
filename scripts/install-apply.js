@@ -182,8 +182,14 @@ function printHumanPlan(plan, dryRun) {
     if (plan.codexCommandSync) {
       const sync = plan.codexCommandSync;
       console.log(`Codex command prompts synced: ${sync.writtenCount} -> ${sync.promptsDir}`);
+      if (sync.writtenSkillCount > 0) {
+        console.log(`Codex command skills synced: ${sync.writtenSkillCount} -> ${sync.skillsRoot}`);
+      }
       if (sync.removedCount > 0) {
         console.log(`Codex stale command prompts removed: ${sync.removedCount}`);
+      }
+      if (sync.removedSkillCount > 0) {
+        console.log(`Codex stale command skills removed: ${sync.removedSkillCount}`);
       }
     }
   }

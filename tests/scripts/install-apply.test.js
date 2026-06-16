@@ -369,12 +369,18 @@ function runTests() {
       assert.strictEqual(result.code, 0, result.stderr);
 
       const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md');
+      const skillPath = path.join(homeDir, '.agents', 'skills', 'ecc-plan', 'SKILL.md');
       assert.ok(fs.existsSync(promptPath), 'Should generate Codex prompt aliases during default install');
+      assert.ok(fs.existsSync(skillPath), 'Should generate Codex skill aliases during default install');
       assert.ok(result.stdout.includes('Codex command prompts synced:'));
+      assert.ok(result.stdout.includes('Codex command skills synced:'));
 
       const prompt = fs.readFileSync(promptPath, 'utf8');
       assert.ok(prompt.includes('Original Claude command: `/ecc:plan`'));
       assert.ok(prompt.includes('Codex prompt alias: `/prompts:ecc-plan`'));
+      const skill = fs.readFileSync(skillPath, 'utf8');
+      assert.ok(skill.includes('Original Claude command: `/ecc:plan`'));
+      assert.ok(skill.includes('Codex explicit skill mention: `$ecc-plan`'));
     } finally {
       cleanup(homeDir);
       cleanup(projectDir);
@@ -392,6 +398,7 @@ function runTests() {
       assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'AGENTS.md')));
       assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'config.toml')));
       assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md')));
+      assert.ok(fs.existsSync(path.join(homeDir, '.agents', 'skills', 'ecc-plan', 'SKILL.md')));
 
       const state = readJson(path.join(homeDir, '.codex', 'ecc-install-state.json'));
       assert.strictEqual(state.target.id, 'codex-home');
