@@ -1,0 +1,451 @@
+{
+  "version": "2026-06-16",
+  "default_escalation": "ambiguous requirements, security-sensitive changes, architectural changes, repeated failures, or user-requested deep review",
+  "routes": {
+    "ecc-aside": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Quick context-preserving side answers are low-risk and usually deterministic."
+    },
+    "ecc-auto-update": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Update behavior is script-driven and does not require deep reasoning."
+    },
+    "ecc-brainstorming": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Design exploration and tradeoff analysis benefit from deeper reasoning."
+    },
+    "ecc-build-fix": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Most build fixes are mechanical after compiler output is available.",
+      "escalation": "the same error survives three attempts or the fix requires architectural changes"
+    },
+    "ecc-checkpoint": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Checkpoint creation and verification are deterministic workflow operations."
+    },
+    "ecc-code-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Code review requires bug, security, and design judgment."
+    },
+    "ecc-cost-report": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Cost reporting is a deterministic local data summarization task."
+    },
+    "ecc-cpp-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Compiler and linker error loops are usually mechanical.",
+      "escalation": "memory ownership, concurrency, ABI, or build-system architecture changes are required"
+    },
+    "ecc-cpp-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "C++ review requires memory-safety, concurrency, and security judgment."
+    },
+    "ecc-cpp-test": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "TDD workflow requires test design, API shaping, and implementation judgment."
+    },
+    "ecc-ecc-guide": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Repository navigation and command lookup are deterministic."
+    },
+    "ecc-evolve": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Evolving instincts into workflows requires abstraction and consolidation judgment."
+    },
+    "ecc-execute-doc": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Executing a multi-phase plan requires audit judgment between phases."
+    },
+    "ecc-fastapi-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "FastAPI review combines architecture, async correctness, security, and performance."
+    },
+    "ecc-feature-dev": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Feature development crosses discovery, architecture, implementation, and review."
+    },
+    "ecc-flutter-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Analyzer and build failures are usually compiler-guided.",
+      "escalation": "state-management, navigation, platform-channel, or architecture changes are required"
+    },
+    "ecc-flutter-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Flutter review requires UI, state, performance, accessibility, and security judgment."
+    },
+    "ecc-flutter-test": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Running and triaging existing Flutter tests is usually mechanical.",
+      "escalation": "new test strategy, golden baselines, or integration architecture are needed"
+    },
+    "ecc-gan-build": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Generator/evaluator loops need scoring and convergence judgment."
+    },
+    "ecc-gan-design": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Visual design evaluation and iteration require subjective quality judgment."
+    },
+    "ecc-go-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Go build, vet, and lint errors are usually localized.",
+      "escalation": "concurrency design, interface design, or module dependency strategy changes are required"
+    },
+    "ecc-go-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Go review requires idiom, concurrency, error-handling, and security judgment."
+    },
+    "ecc-go-test": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "TDD requires test design and implementation tradeoffs."
+    },
+    "ecc-gradle-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Gradle build failures are often script and dependency diagnostics.",
+      "escalation": "multi-module dependency design or Android/KMP architecture changes are required"
+    },
+    "ecc-harness-audit": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "The scorecard is produced by a deterministic audit script."
+    },
+    "ecc-hookify": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Simple hook rule generation can be handled by a lightweight model.",
+      "escalation": "the rule affects broad permissions, shell execution, or security-sensitive behavior"
+    },
+    "ecc-hookify-configure": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Enabling or disabling existing hook rules is deterministic."
+    },
+    "ecc-hookify-help": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Help output is documentation lookup."
+    },
+    "ecc-hookify-list": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Listing configured hook rules is deterministic."
+    },
+    "ecc-instinct-export": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Exporting structured instinct data is deterministic."
+    },
+    "ecc-instinct-import": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Importing structured instincts is mostly mechanical.",
+      "escalation": "duplicates require semantic merging or conflict resolution"
+    },
+    "ecc-instinct-status": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Status reporting is deterministic."
+    },
+    "ecc-jira": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Ticket retrieval, comments, and transitions are tool-driven.",
+      "escalation": "requirements are ambiguous or the ticket needs implementation planning"
+    },
+    "ecc-kotlin-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Kotlin and Gradle build errors are usually compiler-guided.",
+      "escalation": "coroutine design, module boundaries, or dependency architecture changes are required"
+    },
+    "ecc-kotlin-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Kotlin review requires null-safety, coroutine, architecture, and security judgment."
+    },
+    "ecc-kotlin-test": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "TDD requires test design and implementation tradeoffs."
+    },
+    "ecc-learn": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Extracting reusable patterns requires abstraction judgment."
+    },
+    "ecc-learn-eval": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Pattern extraction plus self-evaluation requires deeper reasoning."
+    },
+    "ecc-loop-start": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Starting autonomous loops requires safety and stop-condition judgment."
+    },
+    "ecc-loop-status": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Loop status inspection is deterministic state reporting."
+    },
+    "ecc-marketing-campaign": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Campaign strategy and creative generation require nuanced judgment."
+    },
+    "ecc-model-route": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Routing recommendations follow a small deterministic heuristic."
+    },
+    "ecc-multi-backend": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Multi-model backend workflows require orchestration and architecture judgment."
+    },
+    "ecc-multi-execute": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Multi-model execution needs audit and merge judgment."
+    },
+    "ecc-multi-frontend": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Frontend design workflows require subjective quality and implementation judgment."
+    },
+    "ecc-multi-plan": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Collaborative implementation planning benefits from deeper reasoning."
+    },
+    "ecc-multi-workflow": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Full multi-model workflows combine research, planning, execution, and review."
+    },
+    "ecc-plan": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Planning requires requirements restatement, pattern grounding, risk assessment, and sequencing."
+    },
+    "ecc-plan-doc": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Plan-document generation spans architecture, roadmap, execution, and test planning."
+    },
+    "ecc-plan-prd": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "PRD generation requires product framing and tradeoff decisions."
+    },
+    "ecc-plan-r": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Plan-execute-review pipelines need planning and review judgment."
+    },
+    "ecc-plan-t": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Plan plus TDD plus review requires deep implementation judgment."
+    },
+    "ecc-plan-tr": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Plan plus TDD plus review requires deep implementation judgment."
+    },
+    "ecc-pm2": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Service detection and PM2 command generation are structured and deterministic."
+    },
+    "ecc-pr": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "PR creation is mostly git and template automation.",
+      "escalation": "history analysis is complex, branch divergence occurs, or PR content needs strategic framing"
+    },
+    "ecc-project-init": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Dry-run onboarding plans are generated from explicit install manifests and stack markers."
+    },
+    "ecc-projects": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Project listing and statistics are deterministic."
+    },
+    "ecc-promote": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Promotion is simple when the target instinct is already clear.",
+      "escalation": "promotion requires semantic deduplication or broad policy judgment"
+    },
+    "ecc-prp-commit": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Smart commit staging and message generation are structured.",
+      "escalation": "natural-language file targeting is ambiguous or changes are risky"
+    },
+    "ecc-prp-implement": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Executing implementation plans with validation loops requires implementation judgment."
+    },
+    "ecc-prp-plan": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Comprehensive planning and codebase analysis require deeper reasoning."
+    },
+    "ecc-prp-pr": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "PR creation is mostly git and template automation.",
+      "escalation": "history analysis is complex, branch divergence occurs, or PR content needs strategic framing"
+    },
+    "ecc-prp-prd": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Interactive PRD generation needs product and technical tradeoff reasoning."
+    },
+    "ecc-prune": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Pruning stale pending instincts is deterministic."
+    },
+    "ecc-python-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Python review requires API, typing, security, and idiom judgment."
+    },
+    "ecc-quality-gate": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Quality gates are tool-driven formatter, lint, and type checks."
+    },
+    "ecc-react-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "React build and type failures are usually localized.",
+      "escalation": "hydration, server/client boundaries, or state architecture changes are required"
+    },
+    "ecc-react-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "React review requires hook correctness, rendering, accessibility, and security judgment."
+    },
+    "ecc-react-test": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "React TDD requires behavior-focused test design and component implementation judgment."
+    },
+    "ecc-refactor-clean": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Tool-confirmed dead-code removal is mechanical with tests.",
+      "escalation": "dynamic references, public APIs, entry points, or uncertain usage are involved"
+    },
+    "ecc-resume-session": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Session loading and summarization are structured.",
+      "escalation": "the resumed work requires architectural planning or complex implementation"
+    },
+    "ecc-review-pr": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "PR review requires bug, security, and design judgment."
+    },
+    "ecc-rust-build": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Rust compiler diagnostics often provide precise fixes.",
+      "escalation": "ownership design, unsafe code, lifetimes, or API design changes are required"
+    },
+    "ecc-rust-review": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Rust review requires ownership, lifetime, unsafe, and error-handling judgment."
+    },
+    "ecc-rust-test": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Rust TDD requires API and test design judgment."
+    },
+    "ecc-santa-loop": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Adversarial dual review and convergence gates require deep review judgment."
+    },
+    "ecc-save-session": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Session capture is structured summarization and file writing."
+    },
+    "ecc-security-scan": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "AgentShield produces deterministic findings and scores.",
+      "escalation": "critical or high findings require remediation design"
+    },
+    "ecc-sessions": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Session list, alias, and metadata operations are deterministic."
+    },
+    "ecc-setup-pm": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Package manager preference configuration is deterministic."
+    },
+    "ecc-skill-create": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Skill extraction from history requires abstraction and quality judgment."
+    },
+    "ecc-skill-health": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Skill health dashboards are structured inventory and reporting tasks."
+    },
+    "ecc-test-coverage": {
+      "preferred_model": "high-reasoning",
+      "tier": "reasoning",
+      "reason": "Generating missing tests requires branch, behavior, and mocking judgment."
+    },
+    "ecc-update-codemaps": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark",
+      "reason": "Codemap generation is repository scanning plus structured summarization."
+    },
+    "ecc-update-docs": {
+      "preferred_model": "GPT-5.3-codex-spark",
+      "tier": "spark-with-escalation",
+      "reason": "Source-of-truth documentation sync is mostly mechanical.",
+      "escalation": "documentation requires architectural interpretation or unresolved source conflicts"
+    }
+  }
+}
