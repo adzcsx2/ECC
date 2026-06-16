@@ -87,10 +87,21 @@ Sample role configs in this repo:
 | Hooks | 8+ event types | Not yet supported |
 | Context file | CLAUDE.md + AGENTS.md | AGENTS.md only |
 | Skills | Skills loaded via plugin | `.agents/skills/` directory |
-| Commands | `/slash` commands | Instruction-based |
+| Commands | `/ecc:<name>` slash commands | `/prompts:ecc-<name>` prompt aliases generated from `commands/*.md` |
 | Agents | Subagent Task tool | Multi-agent via `/agent` and `[agents.<name>]` roles |
 | Security | Hook-based enforcement | Instruction + sandbox |
 | MCP | Full support | Supported via `config.toml` and `codex mcp add` |
+
+## Command Prompt Aliases
+
+ECC installs Claude commands under `/ecc:<name>`. For Codex, the installer generates matching prompt files in `~/.codex/prompts/`:
+
+- `/ecc:plan` -> `/prompts:ecc-plan`
+- `/ecc:plan-doc` -> `/prompts:ecc-plan-doc`
+- `/ecc:code-review` -> `/prompts:ecc-code-review`
+- `/ecc:update-docs` -> `/prompts:ecc-update-docs`
+
+Use the Codex prompt alias when you want the same workflow in Codex. The installer refreshes generated prompt files during `install.sh`, `install.ps1`, or `--target codex` installs and preserves user-authored prompts.
 
 ## Security Without Hooks
 

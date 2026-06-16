@@ -3,6 +3,8 @@
 #
 # This wrapper resolves the real repo/package root when invoked through a
 # symlinked npm bin, then delegates to the Node-based installer runtime.
+# Codex prompt alias syncing is handled by scripts/install-apply.js so the
+# shell and PowerShell entrypoints stay behaviorally identical.
 
 set -euo pipefail
 

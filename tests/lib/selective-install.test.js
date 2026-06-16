@@ -232,6 +232,20 @@ function runTests() {
     assert.deepStrictEqual(request.excludeComponentIds, ['capability:media', 'capability:social']);
   })) passed++; else failed++;
 
+  if (test('default full profile preserves an explicit codex target', () => {
+    const request = normalizeInstallRequest({
+      target: 'codex',
+      profileId: null,
+      moduleIds: [],
+      includeComponentIds: [],
+      excludeComponentIds: [],
+      languages: [],
+    });
+    assert.strictEqual(request.mode, 'manifest');
+    assert.strictEqual(request.target, 'codex');
+    assert.strictEqual(request.profileId, 'full');
+  })) passed++; else failed++;
+
   // ─── Component Catalog Validation ───
 
   if (test('component catalog includes lang: family entries', () => {

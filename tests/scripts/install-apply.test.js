@@ -96,7 +96,7 @@ function runTests() {
       const claudeRoot = path.join(homeDir, '.claude');
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'common', 'coding-style.md')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'typescript', 'testing.md')));
-      assert.ok(fs.existsSync(path.join(claudeRoot, 'commands', 'plan.md')));
+      assert.ok(fs.existsSync(path.join(claudeRoot, 'commands', 'ecc', 'plan.md')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'scripts', 'hooks', 'session-end.js')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'scripts', 'lib', 'utils.js')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'tdd-workflow', 'SKILL.md')));
@@ -358,6 +358,50 @@ function runTests() {
     }
   })) passed++; else failed++;
 
+  if (test('default install auto-syncs ECC commands to Codex when ~/.codex exists', () => {
+    const homeDir = createTempDir('install-apply-home-');
+    const projectDir = createTempDir('install-apply-project-');
+
+    try {
+      fs.mkdirSync(path.join(homeDir, '.codex'), { recursive: true });
+
+      const result = run([], { cwd: projectDir, homeDir });
+      assert.strictEqual(result.code, 0, result.stderr);
+
+      const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md');
+      assert.ok(fs.existsSync(promptPath), 'Should generate Codex prompt aliases during default install');
+      assert.ok(result.stdout.includes('Codex command prompts synced:'));
+
+      const prompt = fs.readFileSync(promptPath, 'utf8');
+      assert.ok(prompt.includes('Original Claude command: `/ecc:plan`'));
+      assert.ok(prompt.includes('Codex prompt alias: `/prompts:ecc-plan`'));
+    } finally {
+      cleanup(homeDir);
+      cleanup(projectDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('explicit codex target installs Codex config and command prompt aliases', () => {
+    const homeDir = createTempDir('install-apply-home-');
+    const projectDir = createTempDir('install-apply-project-');
+
+    try {
+      const result = run(['--target', 'codex'], { cwd: projectDir, homeDir });
+      assert.strictEqual(result.code, 0, result.stderr);
+
+      assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'AGENTS.md')));
+      assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'config.toml')));
+      assert.ok(fs.existsSync(path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md')));
+
+      const state = readJson(path.join(homeDir, '.codex', 'ecc-install-state.json'));
+      assert.strictEqual(state.target.id, 'codex-home');
+      assert.strictEqual(state.request.profile, 'full');
+    } finally {
+      cleanup(homeDir);
+      cleanup(projectDir);
+    }
+  })) passed++; else failed++;
+
   if (test('installs manifest profiles and writes non-legacy install-state', () => {
     const homeDir = createTempDir('install-apply-home-');
     const projectDir = createTempDir('install-apply-project-');
@@ -369,7 +413,7 @@ function runTests() {
       const claudeRoot = path.join(homeDir, '.claude');
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'common', 'coding-style.md')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'agents', 'architect.md')));
-      assert.ok(fs.existsSync(path.join(claudeRoot, 'commands', 'plan.md')));
+      assert.ok(fs.existsSync(path.join(claudeRoot, 'commands', 'ecc', 'plan.md')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'hooks', 'hooks.json')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'scripts', 'hooks', 'session-end.js')));
       assert.ok(fs.existsSync(path.join(claudeRoot, 'scripts', 'lib', 'session-manager.js')));
@@ -382,7 +426,7 @@ function runTests() {
       assert.ok(state.resolution.selectedModules.includes('platform-configs'));
       assert.ok(
         state.operations.some(operation => (
-          operation.destinationPath === path.join(claudeRoot, 'commands', 'plan.md')
+          operation.destinationPath === path.join(claudeRoot, 'commands', 'ecc', 'plan.md')
         )),
         'Should record manifest-driven command file copy'
       );

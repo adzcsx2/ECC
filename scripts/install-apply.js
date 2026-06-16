@@ -19,6 +19,9 @@ const {
   normalizeInstallRequest,
   parseInstallArgs,
 } = require('./lib/install/request');
+const { syncEccCommandsToCodex } = require('./codex/sync-ecc-commands-to-codex');
+
+const INSTALLER_SOURCE_ROOT = path.join(__dirname, '..');
 
 /**
  * Clean up legacy 'everything-claude-code' plugin cache and old install-state
@@ -30,6 +33,7 @@ function cleanLegacyEcc(options = {}) {
   const homeDir = process.env.HOME || os.homedir();
   const pluginsDir = path.join(homeDir, '.claude', 'plugins');
   const dryRun = Boolean(options.dryRun);
+  const quiet = Boolean(options.quiet);
 
   const legacyTargets = [
     path.join(pluginsDir, 'cache', 'everything-claude-code'),
@@ -39,7 +43,9 @@ function cleanLegacyEcc(options = {}) {
   for (const targetPath of legacyTargets) {
     if (fs.existsSync(targetPath)) {
       if (dryRun) {
-        console.log(`[ECC dry-run] Would remove legacy path: ${targetPath}`);
+        if (!quiet) {
+          console.log(`[ECC dry-run] Would remove legacy path: ${targetPath}`);
+        }
       } else {
         console.log(`[ECC] Removing legacy ECC path: ${targetPath}`);
         fs.rmSync(targetPath, { recursive: true, force: true });
@@ -53,7 +59,9 @@ function cleanLegacyEcc(options = {}) {
       const cfg = JSON.parse(fs.readFileSync(pluginsConfigPath, 'utf8'));
       if (cfg && cfg.plugins && cfg.plugins['everything-claude-code']) {
         if (dryRun) {
-          console.log(`[ECC dry-run] Would remove 'everything-claude-code' from ${pluginsConfigPath}`);
+          if (!quiet) {
+            console.log(`[ECC dry-run] Would remove 'everything-claude-code' from ${pluginsConfigPath}`);
+          }
         } else {
           console.log(`[ECC] Removing 'everything-claude-code' entry from plugins config`);
           delete cfg.plugins['everything-claude-code'];
@@ -68,7 +76,9 @@ function cleanLegacyEcc(options = {}) {
   const installStatePath = path.join(homeDir, '.claude', 'ecc', 'install-state.json');
   if (fs.existsSync(installStatePath)) {
     if (dryRun) {
-      console.log(`[ECC dry-run] Would remove old install-state: ${installStatePath}`);
+      if (!quiet) {
+        console.log(`[ECC dry-run] Would remove old install-state: ${installStatePath}`);
+      }
     } else {
       console.log(`[ECC] Removing old install-state: ${installStatePath}`);
       fs.rmSync(installStatePath, { force: true });
@@ -169,7 +179,35 @@ function printHumanPlan(plan, dryRun) {
 
   if (!dryRun) {
     console.log(`\nDone. Install-state written to ${plan.installStatePath}`);
+    if (plan.codexCommandSync) {
+      const sync = plan.codexCommandSync;
+      console.log(`Codex command prompts synced: ${sync.writtenCount} -> ${sync.promptsDir}`);
+      if (sync.removedCount > 0) {
+        console.log(`Codex stale command prompts removed: ${sync.removedCount}`);
+      }
+    }
   }
+}
+
+function isCodexDetected(homeDir) {
+  if (process.env.CODEX_HOME) {
+    return true;
+  }
+
+  return fs.existsSync(path.join(homeDir || os.homedir(), '.codex'));
+}
+
+function shouldSyncCodexCommands({ plan, options, config, homeDir }) {
+  if (process.env.ECC_SYNC_CODEX_COMMANDS === '0') {
+    return false;
+  }
+
+  if (plan.target === 'codex') {
+    return true;
+  }
+
+  const hasExplicitTarget = Boolean(options.target || config?.target);
+  return !hasExplicitTarget && isCodexDetected(homeDir);
 }
 
 function main() {
@@ -186,6 +224,7 @@ function main() {
     } = require('./lib/install/config');
     const { applyInstallPlan } = require('./lib/install-executor');
     const { createInstallPlanFromRequest } = require('./lib/install/runtime');
+    const homeDir = process.env.HOME || os.homedir();
     const defaultConfigPath = options.configPath || options.languages.length > 0
       ? null
       : findDefaultInstallConfigPath({ cwd: process.cwd() });
@@ -198,12 +237,13 @@ function main() {
     });
     const plan = createInstallPlanFromRequest(request, {
       projectRoot: process.cwd(),
-      homeDir: process.env.HOME || os.homedir(),
+      homeDir,
       claudeRulesDir: process.env.CLAUDE_RULES_DIR || null,
+      sourceRoot: INSTALLER_SOURCE_ROOT,
     });
 
     if (options.dryRun) {
-      cleanLegacyEcc({ dryRun: true });
+      cleanLegacyEcc({ dryRun: true, quiet: options.json });
       if (options.json) {
         console.log(JSON.stringify({ dryRun: true, plan }, null, 2));
       } else {
@@ -214,6 +254,12 @@ function main() {
 
     cleanLegacyEcc({ dryRun: false });
     const result = applyInstallPlan(plan);
+    if (shouldSyncCodexCommands({ plan: result, options, config, homeDir })) {
+      result.codexCommandSync = syncEccCommandsToCodex({
+        repoRoot: INSTALLER_SOURCE_ROOT,
+        codexHome: process.env.CODEX_HOME || path.join(homeDir, '.codex'),
+      });
+    }
     if (options.json) {
       console.log(JSON.stringify({ dryRun: false, result }, null, 2));
     } else {

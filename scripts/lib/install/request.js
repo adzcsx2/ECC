@@ -136,7 +136,7 @@ function normalizeInstallRequest(options = {}) {
     // Default to full profile overwrite install
     return {
       mode: 'manifest',
-      target: 'claude',
+      target,
       profileId: 'full',
       moduleIds: [],
       includeComponentIds: [],

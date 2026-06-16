@@ -71,6 +71,8 @@ function buildExpectedPublishPaths(repoRoot) {
     "scripts/gemini-adapt-agents.js",
     "scripts/codex/merge-codex-config.js",
     "scripts/codex/merge-mcp-config.js",
+    "scripts/codex/sync-ecc-commands-to-codex.js",
+    "scripts/execute-doc.js",
     ".codex-plugin",
     ".mcp.json",
     "install.sh",

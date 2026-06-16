@@ -37,11 +37,25 @@ For VS Code GitHub Copilot Chat, the same ECC workflows ship as prompt files und
 
 To use: open Copilot Chat, type `/` and select the prompt from the picker.
 
+### Codex Prompt Aliases
+
+When Codex is installed, `install.sh` and `install.ps1` automatically sync every top-level `commands/*.md` file into `~/.codex/prompts/` as `ecc-*.md`. Use the Codex prompt alias that matches the Claude command name:
+
+| Claude Command | Codex Prompt |
+| -------------- | ------------ |
+| `/ecc:plan` | `/prompts:ecc-plan` |
+| `/ecc:plan-doc` | `/prompts:ecc-plan-doc` |
+| `/ecc:code-review` | `/prompts:ecc-code-review` |
+| `/ecc:update-docs` | `/prompts:ecc-update-docs` |
+
+The generated prompts are refreshed on each install and stale generated `ecc-*` prompts are removed without touching user-authored prompt files.
+
 ### Install Improvements
 
 - **Default overwrite install**: Running `./install.sh` with no arguments now defaults to `--profile full --target claude`, performing a complete overwrite install. Use `./install.sh --help` to see all options.
 - **Clean install by default**: `install.sh` automatically removes legacy `everything-claude-code` plugin cache before installing, preventing old and new versions from coexisting.
 - **`/ecc:` namespace for all commands**: `commands/` now installs to `~/.claude/commands/ecc/`, giving every command the `/ecc:` prefix.
+- **Codex command sync**: If `~/.codex` or `CODEX_HOME` exists, installs also refresh Codex prompt aliases under `~/.codex/prompts/`. `./install.sh --target codex` installs the Codex baseline and syncs the same aliases explicitly.
 
 ### E2E Testing
 
