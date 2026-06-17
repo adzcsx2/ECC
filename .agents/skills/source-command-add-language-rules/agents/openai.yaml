@@ -1,0 +1,7 @@
+interface:
+  display_name: "Source Add Language Rules"
+  short_description: "Scaffold language-rule workflow commands"
+  brand_color: "#0EA5E9"
+  default_prompt: "Use $source-command-add-language-rules to scaffold an add-language-rules workflow."
+policy:
+  allow_implicit_invocation: true

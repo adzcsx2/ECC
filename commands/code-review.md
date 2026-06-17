@@ -21,6 +21,38 @@ Otherwise:
 
 ---
 
+## Active Remediation Policy
+
+Code review is not passive. After identifying findings, actively fix issues
+when the correct change is clear from the code, tests, project rules, or user
+request:
+
+- Fix CRITICAL issues before continuing whenever they are safely fixable.
+- Fix HIGH issues proactively; do not stop at reporting them.
+- Fix MEDIUM issues proactively when the fix is local, low-risk, and aligned
+  with existing project patterns.
+- Leave LOW issues as comments unless they are trivial and already in the
+  touched area.
+
+Ask the user before fixing only when the change requires a product decision,
+an architectural tradeoff, a public API/data-model change, a potentially
+destructive migration, secret rotation, a broad refactor, or interpretation of
+unclear intended behavior.
+
+After each remediation pass, run the relevant validation checks and repeat the
+review from the appropriate gather/fetch phase. Continue this review → fix →
+validate → review loop until no CRITICAL or HIGH findings remain and remaining
+MEDIUM findings are either fixed, explicitly deferred with a reason, or judged
+low-risk enough that further automatic fixes would not materially improve the
+change. If the same finding or validation failure persists after repeated fix
+attempts, stop and ask the user for direction with the smallest concrete
+decision needed.
+
+Preserve unrelated user changes. Do not revert or rewrite files outside the
+review scope unless that is required to fix a finding and the reason is clear.
+
+---
+
 ## Local Review Mode
 
 Comprehensive security and quality review of uncommitted changes.
@@ -29,11 +61,25 @@ Comprehensive security and quality review of uncommitted changes.
 
 ```bash
 git diff --name-only HEAD
+git status --short
 ```
 
 If no changed files, stop: "Nothing to review."
+Include tracked changes, deleted files, renamed files, and untracked files
+reported by `git status --short`. Do not assume `git diff --name-only HEAD`
+is complete, because it omits untracked files.
 
 ### Phase 2 — REVIEW
+
+Read applicable project instructions before reviewing code:
+- Root and nearest `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, or `AGENT.md`
+- Project `.ai/rules/` files that match the touched area
+- User/global rules only as lower-precedence defaults
+
+When project rules explicitly conflict with global rules, follow the project
+rules. For private repositories that explicitly allow committed configuration
+or secret fields, skip secret-security checks unless the user asks for a
+security audit.
 
 Read each changed file in full. Check for:
 
@@ -68,7 +114,24 @@ Generate report with:
 - Issue description
 - Suggested fix
 
-Block commit if CRITICAL or HIGH issues found.
+Do not stop after reporting fixable CRITICAL, HIGH, or MEDIUM issues. Apply
+the **Active Remediation Policy** first.
+
+### Phase 4 — REMEDIATE AND RE-REVIEW
+
+For each finding:
+
+1. Fix CRITICAL and HIGH issues that have a clear, safe correction.
+2. Fix MEDIUM issues when the fix is straightforward and consistent with the
+   local code style.
+3. Ask the user only for findings that need a decision or have unclear intent.
+4. Run the smallest relevant validation command first, then broader project
+   checks when the change touches shared behavior.
+5. Restart at **Phase 1 — GATHER** and repeat until the review reaches an
+   acceptable residual-risk state.
+
+Block commit if CRITICAL or HIGH issues remain after the remediation loop or
+if the user has not yet decided an ambiguous required fix.
 Never approve code with security vulnerabilities.
 
 ---
@@ -186,7 +249,24 @@ Special cases:
 - Only docs/config changes → Lighter review, focus on correctness
 - Explicit `--approve` or `--request-changes` flag → Override decision (but still report all findings)
 
-### Phase 6 — REPORT
+### Phase 6 — REMEDIATE AND RE-REVIEW
+
+Before publishing a review, apply the **Active Remediation Policy**:
+
+1. If the PR branch is checked out locally or can be safely checked out, fix
+   clear CRITICAL, HIGH, and straightforward MEDIUM issues in the PR worktree.
+2. Run the relevant validation commands for the files changed by the fix.
+3. Re-run the PR review from **Phase 1 — FETCH** so the final decision reflects
+   the post-fix state.
+4. If the branch cannot be edited locally, the push target is unavailable, or
+   the fix requires a maintainer/product decision, stop and report the concrete
+   blocker instead of silently publishing stale findings.
+
+Do not publish `REQUEST CHANGES` solely for fixable HIGH or MEDIUM issues until
+the remediation loop has either fixed them or reached a decision/blocker that
+requires the user.
+
+### Phase 7 — REPORT
 
 Create review artifact at `.claude/reviews/pr-<NUMBER>-review.md` unless the repo already uses legacy `.claude/PRPs/reviews/` for this workstream:
 
@@ -228,7 +308,7 @@ Create review artifact at `.claude/reviews/pr-<NUMBER>-review.md` unless the rep
 <list of files with change type: Added/Modified/Deleted>
 ```
 
-### Phase 7 — PUBLISH
+### Phase 8 — PUBLISH
 
 Post the review to GitHub:
 
@@ -261,7 +341,7 @@ gh api "repos/{owner}/{repo}/pulls/<NUMBER>/reviews" \
   --input comments.json  # [{"path": "file", "line": N, "body": "comment"}, ...]
 ```
 
-### Phase 8 — OUTPUT
+### Phase 9 — OUTPUT
 
 Report to user:
 

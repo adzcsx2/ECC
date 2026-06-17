@@ -1,0 +1,7 @@
+interface:
+  display_name: "Source Database Migration"
+  short_description: "Scaffold database migration workflows"
+  brand_color: "#0EA5E9"
+  default_prompt: "Use $source-command-database-migration to scaffold a database migration workflow."
+policy:
+  allow_implicit_invocation: true

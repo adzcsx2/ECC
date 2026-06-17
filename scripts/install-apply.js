@@ -203,7 +203,7 @@ function isCodexDetected(homeDir) {
   return fs.existsSync(path.join(homeDir || os.homedir(), '.codex'));
 }
 
-function shouldSyncCodexCommands({ plan, options, config, homeDir }) {
+function shouldSyncCodexCommands({ plan, homeDir }) {
   if (process.env.ECC_SYNC_CODEX_COMMANDS === '0') {
     return false;
   }
@@ -212,8 +212,7 @@ function shouldSyncCodexCommands({ plan, options, config, homeDir }) {
     return true;
   }
 
-  const hasExplicitTarget = Boolean(options.target || config?.target);
-  return !hasExplicitTarget && isCodexDetected(homeDir);
+  return isCodexDetected(homeDir);
 }
 
 function main() {

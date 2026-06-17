@@ -4,6 +4,8 @@
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
+Access to 63 agents, 249 skills, and 85 legacy command shims.
+
 ---
 
 ## What's New in This Fork
@@ -37,25 +39,25 @@ For VS Code GitHub Copilot Chat, the same ECC workflows ship as prompt files und
 
 To use: open Copilot Chat, type `/` and select the prompt from the picker.
 
-### Codex Prompt Aliases
+### Codex Skills
 
-When Codex is installed, `install.sh` and `install.ps1` automatically sync every top-level `commands/*.md` file into `~/.codex/prompts/` as `ecc-*.md`. Use the Codex prompt alias that matches the Claude command name:
+When Codex is installed, `install.sh` and `install.ps1` automatically sync every top-level `commands/*.md` file into `~/.agents/skills/` as `ecc-*` skill wrappers. Use the Codex skill that matches the Claude command name:
 
-| Claude Command | Codex Prompt |
-| -------------- | ------------ |
-| `/ecc:plan` | `/prompts:ecc-plan` |
-| `/ecc:plan-doc` | `/prompts:ecc-plan-doc` |
-| `/ecc:code-review` | `/prompts:ecc-code-review` |
-| `/ecc:update-docs` | `/prompts:ecc-update-docs` |
+| Claude Command | Codex Skill |
+| -------------- | ----------- |
+| `/ecc:plan` | `$ecc-plan` |
+| `/ecc:plan-doc` | `$ecc-plan-doc` |
+| `/ecc:code-review` | `$ecc-code-review` |
+| `/ecc:update-docs` | `$ecc-update-docs` |
 
-The generated prompts are refreshed on each install and stale generated `ecc-*` prompts are removed without touching user-authored prompt files.
+The generated skill wrappers are refreshed on each install and stale generated `ecc-*` skills are removed without touching user-authored files. Optional `/prompts:ecc-*` aliases can be generated with `ECC_SYNC_CODEX_PROMPTS=1` for users who prefer prompt aliases.
 
 ### Install Improvements
 
 - **Default overwrite install**: Running `./install.sh` with no arguments now defaults to `--profile full --target claude`, performing a complete overwrite install. Use `./install.sh --help` to see all options.
 - **Clean install by default**: `install.sh` automatically removes legacy `everything-claude-code` plugin cache before installing, preventing old and new versions from coexisting.
 - **`/ecc:` namespace for all commands**: `commands/` now installs to `~/.claude/commands/ecc/`, giving every command the `/ecc:` prefix.
-- **Codex command sync**: If `~/.codex` or `CODEX_HOME` exists, installs also refresh Codex prompt aliases under `~/.codex/prompts/`. `./install.sh --target codex` installs the Codex baseline and syncs the same aliases explicitly.
+- **Codex command sync**: If `~/.codex` or `CODEX_HOME` exists, installs refresh Codex skill wrappers under `~/.agents/skills/` by default. Set `ECC_SYNC_CODEX_PROMPTS=1` to also generate prompt aliases under `~/.codex/prompts/`. `./install.sh --target codex` installs the Codex baseline and syncs the same skills explicitly.
 
 ### E2E Testing
 
@@ -69,6 +71,26 @@ See [docs/FORK-SYNC.md](docs/FORK-SYNC.md) for instructions on pulling upstream 
 ### Changelog
 
 Recent upstream sync history. [View all changelogs →](docs/changelogs/)
+
+- **Public surface synced to the live repo** - metadata, catalog counts, plugin manifests, and install-facing docs now match the actual OSS surface: 63 agents, 249 skills, and 85 legacy command shims.
+
+```text
+|-- agents/           # 63 specialized subagents for delegation
+```
+
+| Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |
+| --- | --- | --- | --- | --- |
+| Agents | 63 agents | Shared | Shared | 12 |
+| Commands | 85 commands | Shared | Instruction-based | 31 |
+| Skills | 249 skills | Shared | 10 (native format) | 37 |
+
+## Cross-Tool Feature Parity
+
+| Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |
+| --- | --- | --- | --- | --- |
+| **Agents** | 63 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |
+| **Commands** | 85 | Shared | Instruction-based | 31 |
+| **Skills** | 249 | Shared | 10 (native format) | 37 |
 
 | Date       | #                                            | Description                                                                                                                                          |
 | ---------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -691,6 +691,39 @@ function runTests() {
     }
   })) passed++; else failed++;
 
+  if (test('end-to-end: explicit claude target syncs Codex command skills without prompt aliases by default', () => {
+    const { execFileSync } = require('child_process');
+    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'install-apply.js');
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selective-codex-sync-'));
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selective-codex-sync-project-'));
+
+    try {
+      fs.mkdirSync(path.join(homeDir, '.codex'), { recursive: true });
+
+      execFileSync('node', [
+        scriptPath,
+        '--profile', 'core',
+        '--target', 'claude',
+      ], {
+        cwd: projectDir,
+        env: { ...process.env, HOME: homeDir, ECC_SYNC_CODEX_COMMANDS: '1' },
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md');
+      const skillPath = path.join(homeDir, '.agents', 'skills', 'ecc-plan', 'SKILL.md');
+      assert.ok(!fs.existsSync(promptPath), 'Should not sync ecc-plan prompt alias by default');
+      assert.ok(fs.existsSync(skillPath), 'Should sync ecc-plan command skill');
+
+      const skill = fs.readFileSync(skillPath, 'utf8');
+      assert.ok(skill.includes('read the source command completely before acting'), 'Skill should read source command on use');
+    } finally {
+      fs.rmSync(homeDir, { recursive: true, force: true });
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
+  })) passed++; else failed++;
+
   if (test('end-to-end: installs --profile developer --without capability:orchestration and state reflects exclusion', () => {
     const { execFileSync } = require('child_process');
     const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'install-apply.js');

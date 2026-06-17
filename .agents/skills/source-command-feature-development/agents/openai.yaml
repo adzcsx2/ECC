@@ -1,0 +1,7 @@
+interface:
+  display_name: "Source Feature Development"
+  short_description: "Scaffold feature development workflows"
+  brand_color: "#0EA5E9"
+  default_prompt: "Use $source-command-feature-development to scaffold a feature development workflow."
+policy:
+  allow_implicit_invocation: true
