@@ -1,8 +1,10 @@
 # plan-doc Document Contract
 
-Read this file completely before emitting the Stage 3 plan and again before
-writing files in Stage 4. It is the source of truth for the generated document
-set. Do not rely on remembered templates.
+Read this file completely before emitting the Stage 3 plan. After every
+expected document is written or checkpoint-resolved, read it again immediately
+before the Stage 5 conformance audit. It is the source of truth for both the
+confirmed generation plan and the post-generation audit. Do not rely on
+remembered templates when certifying the output.
 
 ## Fixed Output Structure
 
@@ -135,6 +137,9 @@ Additional guardrails:
 ## Generation Guardrails
 
 - Never generate before the Stage 3 confirmation.
+- Do not require a redundant contract reread immediately before Stage 4 writes;
+  generate from the confirmed plan and Generation Handoff, then audit the
+  completed output against a fresh contract read in Stage 5.
 - Never overwrite a checkpointed `00-执行文档.md`; resume it. In Stage 4 skip
   existing documents, while Stage 5 may make minimal evidence-based repairs.
 - Never put architecture prose or code templates in `00`; use `01` and `02`.

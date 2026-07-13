@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/hoyn/Documents/github/ECC/.codex/hooks/sync-project-skills.sh'",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

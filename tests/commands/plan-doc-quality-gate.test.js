@@ -52,8 +52,28 @@ test('keeps the main command lean and loads references at explicit checkpoints',
     assert.ok(source.includes(relativePath), `Expected loading instruction for ${relativePath}`);
   }
   assert.ok(
-    source.includes('Read it again immediately before Stage 5'),
-    'Expected the final quality gate to be refreshed immediately before use',
+    source.includes('Read them') &&
+      source.includes('again immediately before Stage 5'),
+    'Expected the document contract and final quality gate to be refreshed immediately before use',
+  );
+});
+
+test('generates before re-reading the document contract for the final audit', () => {
+  const command = readCommand();
+  const bundle = readCommandBundle();
+
+  assert.ok(
+    !command.includes('Before Stage 4 writes any file, reread'),
+    'Expected Stage 4 not to require a redundant pre-write contract reread',
+  );
+  assert.ok(
+    command.includes('After every expected file is written or checkpoint-resolved, reread') &&
+      command.includes('plan-doc/references/document-contract.md'),
+    'Expected the document contract to be refreshed only after generation',
+  );
+  assert.ok(
+    bundle.includes('Document-contract conformance audit'),
+    'Expected Stage 5 to audit generated files against the freshly read contract',
   );
 });
 

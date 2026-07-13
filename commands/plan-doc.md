@@ -51,10 +51,11 @@ subagent. Paths are relative to `commands/`.
    - `plan-doc/references/subagent-routing.md`
 2. During initial preparation, read completely:
    - `plan-doc/references/post-generation-quality-gate.md`
-3. Before Stage 4 writes any file, reread
-   `plan-doc/references/document-contract.md` completely.
-4. Before Stage 5, reread
-   `plan-doc/references/post-generation-quality-gate.md` completely. Read it again immediately before Stage 5; never certify from memory or the Generation Handoff.
+3. After every expected file is written or checkpoint-resolved, reread both
+   `plan-doc/references/document-contract.md` and
+   `plan-doc/references/post-generation-quality-gate.md` completely. Read them
+   again immediately before Stage 5; never certify from memory or the
+   Generation Handoff.
 
 If a mandatory reference is missing or empty, stop before generation and report
 a broken installation. Do not silently degrade the contract.
@@ -193,10 +194,11 @@ runtime switched models automatically.
 
 ### Stage 4. Generate or resume
 
-1. Reread `plan-doc/references/document-contract.md` completely and use the
-   handoff as the primary generation input. Reread upstream sources here only
-   when the handoff is incomplete/conflicting or the task changed; Stage 5 will
-   independently reread product sources.
+1. Use the confirmed Generation Handoff and the contract loaded before Stage 3
+   as the generation inputs. Do not pause for a redundant pre-write contract
+   reread. Reread upstream sources here only when the handoff is
+   incomplete/conflicting or the task changed; Stage 5 will independently
+   reread the contract and product sources after generation.
 2. Resolve `docs/plan/<task-slug>-<local-YYYY-MM-DD>/`:
    - same slug and today's date: reuse;
    - same slug with an older date: create today's directory, preserve the old;
@@ -227,10 +229,12 @@ runtime switched models automatically.
 ### Stage 5. Post-generation quality gate
 
 After every expected file is written or checkpoint-resolved, reread
-`plan-doc/references/post-generation-quality-gate.md` from disk and execute it
-completely. It owns read-back verification, fresh product/execution reads,
-bidirectional traceability, robustness checks, repair/re-audit, persisted audit
-evidence, and the `PASS` / `BLOCKED` handoff.
+`plan-doc/references/document-contract.md` and
+`plan-doc/references/post-generation-quality-gate.md` from disk. First audit
+the generated set against the fresh document contract, then execute the quality
+gate completely. Together they own contract conformance, read-back verification,
+fresh product/execution reads, bidirectional traceability, robustness checks,
+repair/re-audit, persisted audit evidence, and the `PASS` / `BLOCKED` handoff.
 
 Stage 5 is mandatory on new generation and checkpoint resume. Never print an
 execution prompt until the gate returns `PASS`.
@@ -244,7 +248,8 @@ execution prompt until the gate returns `PASS`.
 ## Non-Negotiable Guardrails
 
 - Plan and user confirmation precede writes.
-- References are loaded at their checkpoints, especially the fresh Stage 5 read.
+- References are loaded at their checkpoints, especially the fresh post-write
+  Stage 5 read of both the document contract and quality gate.
 - Existing progress pointers are resumed, never overwritten.
 - Protected sources are not modified during generation.
 - Subagents never update pointers, decide phase transitions, certify Stage 5, or

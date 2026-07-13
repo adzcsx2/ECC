@@ -1,9 +1,10 @@
 # plan-doc Post-Generation Quality Gate
 
-Read this file completely during initial workflow preparation, then read it
-again immediately before Stage 5. Run it only after every expected execution
-document has been written or checkpoint-resolved. This gate is mandatory and
-cannot be replaced by a file-existence check or the Generation Handoff.
+Read this file completely during initial workflow preparation. After every
+expected execution document has been written or checkpoint-resolved, reread
+both this file and `plan-doc/references/document-contract.md` immediately before
+Stage 5. This gate is mandatory and cannot be replaced by a file-existence
+check or the Generation Handoff.
 
 ## 1. Read-Back Verification
 
@@ -11,7 +12,18 @@ List the target directory and confirm every expected file (5 standard or 7 in
 test mode) is present and non-empty. Regenerate any missing or empty file before
 auditing. Print `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
 
-## 2. Fresh Product / Execution Audit
+## 2. Document-contract conformance audit
+
+- Re-read `plan-doc/references/document-contract.md` from disk only after every
+  expected document has been written or checkpoint-resolved.
+- Audit the completed set against the fresh contract: exact file count and
+  names, write-order outcomes, navigation links, document responsibilities,
+  progress-pointer schema, resume protocol, subagent routing, atomic checklist
+  requirements, traceability/audit sections, and fresh-session prompt rules.
+- Record every mismatch as a repair-loop finding. File existence alone is not
+  contract conformance.
+
+## 3. Fresh Product / Execution Audit
 
 - Re-read every product source from disk only after all execution documents
   have been written. Do NOT rely only on the Generation Handoff; it is a
@@ -32,7 +44,7 @@ auditing. Print `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
   dependencies, paths, symbol anchors, commands, architecture decisions,
   development templates, milestones, tests, rollback, and README status agree.
 
-## 3. Robustness Audit
+## 4. Robustness Audit
 
 Evaluate every category below. Mark an irrelevant category `N/A` with a reason:
 
@@ -56,7 +68,7 @@ exist. Verify commands against actual scripts/configuration; never invent a
 green command. If the environment cannot run a command, record why and the
 objective evidence the executor must collect.
 
-## 4. Repair loop (mandatory)
+## 5. Repair loop (mandatory)
 
 1. Classify findings as `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW`; cite conflicting
    product-source sections and generated-document locations.
@@ -72,11 +84,12 @@ objective evidence the executor must collect.
    against fresh disk reads. Continue until no confirmed defect remains or a
    genuine product-decision blocker is recorded. Do not report success while any confirmed defect remains.
 
-## 5. Persist Evidence and Handoff
+## 6. Persist Evidence and Handoff
 
 Update `生成后对齐与鲁棒性审计` in `00-执行文档.md` with:
 
 - audit time and exact product-source list
+- document-contract conformance result and repaired contract defects
 - requirement totals, covered count, uncovered count, and justified exclusions
 - applicable robustness categories and `N/A` reasons
 - repairs made with affected document sections
