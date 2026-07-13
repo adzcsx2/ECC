@@ -4,7 +4,8 @@ Read this file completely during initial workflow preparation. After every
 expected execution document has been written or checkpoint-resolved, reread
 both this file and `plan-doc/references/document-contract.md` immediately before
 Stage 5. This gate is mandatory and cannot be replaced by a file-existence
-check or the Generation Handoff.
+check or the Generation Handoff. Execute the complete audit exactly once per
+command invocation. Repairs must not trigger another audit pass.
 
 ## 1. Read-Back Verification
 
@@ -20,7 +21,7 @@ auditing. Print `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
   names, write-order outcomes, navigation links, document responsibilities,
   progress-pointer schema, resume protocol, subagent routing, atomic checklist
   requirements, traceability/audit sections, and fresh-session prompt rules.
-- Record every mismatch as a repair-loop finding. File existence alone is not
+- Record every mismatch as an audit finding. File existence alone is not
   contract conformance.
 
 ## 3. Fresh Product / Execution Audit
@@ -68,7 +69,7 @@ exist. Verify commands against actual scripts/configuration; never invent a
 green command. If the environment cannot run a command, record why and the
 objective evidence the executor must collect.
 
-## 5. Repair loop (mandatory)
+## 5. Single repair pass (mandatory; no re-audit)
 
 1. Classify findings as `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW`; cite conflicting
    product-source sections and generated-document locations.
@@ -80,9 +81,13 @@ objective evidence the executor must collect.
 4. If sources conflict or a fix would choose/change product intent, do not
    guess. Add the conflict to `blockers`, set pointer status to `blocked`, and
    ask the user for a product decision.
-5. After each repair pass, Re-run the complete alignment and robustness audit
-   against fresh disk reads. Continue until no confirmed defect remains or a
-   genuine product-decision blocker is recorded. Do not report success while any confirmed defect remains.
+5. Apply at most one consolidated repair pass for all findings from the single
+   audit. Do not rerun, restart, or recursively invoke the document-contract,
+   alignment, or robustness audit after repairs. If every confirmed finding
+   from the audit was repaired, the result may be `PASS`; if any finding cannot
+   be repaired confidently in that pass, record it as a blocker and return
+   `BLOCKED`. State in the evidence that repairs were not re-audited because the
+   workflow is intentionally single-pass.
 
 ## 6. Persist Evidence and Handoff
 
@@ -96,7 +101,9 @@ Update `生成后对齐与鲁棒性审计` in `00-执行文档.md` with:
 - unresolved blockers
 - final result: `PASS` or `BLOCKED`
 
-Repeat read-back verification after repairs. Report line counts and final audit
+After repairs, repeat only the structural read-back verification from section 1
+(file presence, non-empty status, and line counts). This is not a second audit
+and must not reopen the audit/repair cycle. Report line counts and final audit
 result. Update `docs/README.md` under `计划文档 / Plan docs` when that section
 exists; otherwise suggest the addition. State which protected upstream sources
 were intentionally not modified.

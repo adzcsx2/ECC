@@ -129,20 +129,23 @@ test('audits execution-document robustness beyond happy paths', () => {
   }
 });
 
-test('repairs confirmed defects and re-audits before reporting success', () => {
+test('runs one audit and never enters a repair/re-audit loop', () => {
   const source = readCommandBundle();
 
   assert.ok(
-    source.includes('Repair loop (mandatory)'),
-    'Expected an explicit mandatory repair loop',
+    source.includes('complete audit exactly once per') &&
+      source.includes('Single repair pass (mandatory; no re-audit)'),
+    'Expected one complete audit followed by at most one repair pass',
   );
   assert.ok(
-    source.includes('Re-run the complete alignment and robustness audit'),
-    'Expected a complete re-audit after repairs',
+    source.includes('Do not rerun, restart, or recursively invoke'),
+    'Expected an explicit prohibition on recursive or repeated audits',
   );
   assert.ok(
-    source.includes('Do not report success while any confirmed defect remains'),
-    'Expected unresolved confirmed defects to block success',
+    !source.includes('Repair loop (mandatory)') &&
+      !source.includes('Re-run the complete alignment and robustness audit') &&
+      !source.includes('Continue until no confirmed defect remains'),
+    'Expected all unbounded repair/re-audit loop instructions to be removed',
   );
 });
 

@@ -1,5 +1,5 @@
 ---
-description: 'Generate and post-audit a task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log, architecture, dev guide, roadmap, and optional test docs. Reconcile product requirements with executable steps and repair confirmed documentation defects before handoff.'
+description: 'Generate and single-pass audit a task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log, architecture, dev guide, roadmap, and optional test docs. Reconcile product requirements with executable steps and repair confirmed documentation defects once before handoff.'
 argument-hint: '<task-slug> [test] | [test] <task-slug>'
 ---
 
@@ -234,7 +234,9 @@ After every expected file is written or checkpoint-resolved, reread
 the generated set against the fresh document contract, then execute the quality
 gate completely. Together they own contract conformance, read-back verification,
 fresh product/execution reads, bidirectional traceability, robustness checks,
-repair/re-audit, persisted audit evidence, and the `PASS` / `BLOCKED` handoff.
+one bounded repair pass, persisted audit evidence, and the `PASS` / `BLOCKED`
+handoff. Run the complete audit exactly once per invocation; never repeat Stage
+5 after repairs or recursively restart the quality gate.
 
 Stage 5 is mandatory on new generation and checkpoint resume. Never print an
 execution prompt until the gate returns `PASS`.
