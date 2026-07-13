@@ -205,11 +205,31 @@ Define the implementation approach:
 
 ## Phase 6 — GENERATE
 
-Write the full plan document using the template below. Save to `.claude/PRPs/plans/{kebab-case-feature-name}.plan.md`.
+Write the full plan document using the template below.
 
-Create the directory if it doesn't exist:
+Resolve the output directory from the project root before writing:
+
+1. If a root-level `docs/` directory exists, save plans under
+   `docs/plan/`.
+2. If the project has no root-level `docs/` directory, fall back to
+   `.claude/PRPs/plans/`.
+3. Create the selected plan directory if it does not exist.
+
+The resolved plan path is therefore one of:
+
+```text
+docs/plan/{kebab-case-feature-name}.plan.md
+.claude/PRPs/plans/{kebab-case-feature-name}.plan.md
+```
+
+Example directory selection:
 ```bash
-mkdir -p .claude/PRPs/plans
+if [ -d docs ]; then
+  PLAN_DIR="docs/plan"
+else
+  PLAN_DIR=".claude/PRPs/plans"
+fi
+mkdir -p "$PLAN_DIR"
 ```
 
 ### Plan Template
@@ -427,8 +447,11 @@ EXPECT: Feature works as designed
 
 Write the generated plan to:
 ```
-.claude/PRPs/plans/{kebab-case-feature-name}.plan.md
+{resolved-plan-directory}/{kebab-case-feature-name}.plan.md
 ```
+
+Use `docs/plan/` when the project root contains `docs/`; otherwise use
+`.claude/PRPs/plans/`. Do not write a second copy to the fallback directory.
 
 ### Update PRD (if input was a PRD)
 
@@ -441,7 +464,7 @@ If this plan was generated from a PRD phase:
 ```
 ## Plan Created
 
-- **File**: .claude/PRPs/plans/{kebab-case-feature-name}.plan.md
+- **File**: {resolved-plan-path}
 - **Source PRD**: [path or "N/A"]
 - **Phase**: [phase name or "standalone"]
 - **Complexity**: [level]
@@ -451,7 +474,7 @@ If this plan was generated from a PRD phase:
 - **Risks**: [top risk or "none identified"]
 - **Confidence Score**: [1-10] — likelihood of single-pass implementation
 
-> Next step: Run `/prp-implement .claude/PRPs/plans/{name}.plan.md` to execute this plan.
+> Next step: Run `/prp-implement {resolved-plan-path}` to execute this plan.
 ```
 
 ---

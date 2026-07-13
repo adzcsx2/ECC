@@ -19,9 +19,11 @@ All commands install under the `/ecc:` namespace.
 | `/ecc:plan-r`   | Plan → Execute → Code Review pipeline                | [README](commands/plan-r/README.md)   |
 | `/ecc:plan-t`   | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md)   |
 | `/ecc:plan-tr`  | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md)  |
-| `/ecc:plan-doc` | Generate task-scoped documentation set               | [README](commands/plan-doc/README.md) |
+| `/ecc:plan-doc` | Generate modular, product-aligned execution docs with a post-audit repair gate | [README](commands/plan-doc/README.md) |
 | `/ecc:execute-doc` | Execute a plan-doc execution document phase by phase (same-model subagent, auto-advance; hardened stop-rules + optional script orchestrator for zero-stop) | [README](commands/execute-doc/README.md) |
 | `/ecc:brainstorming` | Pre-implementation design exploration; hands the approved design to /ecc:plan | [README](commands/brainstorming/README.md) |
+| `/ecc:prp-plan` | Generate a codebase-grounded implementation plan under `docs/plan/`, with `.claude/PRPs/plans/` fallback | [README](commands/prp-plan/README.md) |
+| `/ecc:prp-prd` | Generate a research-grounded PRD under `docs/product/` with a Chinese filename, with legacy fallback when `docs/` is absent | [README](commands/prp-prd/README.md) |
 
 ### GitHub Copilot Prompts
 
@@ -30,7 +32,7 @@ For VS Code GitHub Copilot Chat, the same ECC workflows ship as prompt files und
 | Copilot Prompt         | When to use                     | Purpose                                                    |
 | ---------------------- | ------------------------------- | ---------------------------------------------------------- |
 | `/ecc-plan`            | Complex feature                 | Phased implementation plan                                 |
-| `/ecc-plan-doc`        | Multi-session, multi-phase work | Persist a task-scoped documentation set under `docs/plan/` |
+| `/ecc-plan-doc`        | Multi-session, multi-phase work | Persist modular execution docs and enforce a product-alignment quality gate |
 | `/ecc-tdd`             | New feature or bug fix          | Test-driven development cycle                              |
 | `/ecc-code-review`     | After writing code              | Quality and security review                                |
 | `/ecc-security-review` | Before a release                | Deep security analysis                                     |

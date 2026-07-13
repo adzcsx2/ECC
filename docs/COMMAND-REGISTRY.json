@@ -510,7 +510,7 @@
     },
     {
       "command": "plan-doc",
-      "description": "Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log with progress pointer and subagent plan, architecture design, dev guide, roadmap, and optional test docs. Prefer /ecc:plan for execution, fall back to plain-language resume prompt if declined.",
+      "description": "Generate and post-audit a task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log, architecture, dev guide, roadmap, and optional test docs. Reconcile product requirements with executable steps and repair confirmed documentation defects before handoff.",
       "type": "orchestration",
       "primaryAgents": [],
       "allAgents": [],

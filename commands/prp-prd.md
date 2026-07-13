@@ -187,9 +187,38 @@ Ask final clarifying questions:
 
 ## Phase 7: GENERATE - Write PRD
 
-**Output path**: `.claude/PRPs/prds/{kebab-case-name}.prd.md`
+Resolve the output path from the project root before writing:
 
-Create directory if needed: `mkdir -p .claude/PRPs/prds`
+1. Read the project's documentation instructions and existing product-document
+   naming patterns before selecting a filename.
+2. If a root-level `docs/` directory exists, write the PRD under
+   `docs/product/` with a Chinese filename:
+   `docs/product/{中文产品或功能名称}需求文档.md`.
+3. If the project has no root-level `docs/` directory, fall back to
+   `.claude/PRPs/prds/` using
+   `.claude/PRPs/prds/{kebab-case-name}.prd.md`.
+4. Create only the selected directory. Do not write a second copy to the
+   fallback directory.
+5. If higher-priority project instructions define a more specific product
+   documentation path or Chinese naming pattern, follow those instructions.
+
+The resolved PRD path is therefore one of:
+
+```text
+docs/product/{中文产品或功能名称}需求文档.md
+.claude/PRPs/prds/{kebab-case-name}.prd.md
+```
+
+Example directory selection:
+
+```bash
+if [ -d docs ]; then
+  PRD_DIR="docs/product"
+else
+  PRD_DIR=".claude/PRPs/prds"
+fi
+mkdir -p "$PRD_DIR"
+```
 
 ### PRD Template
 
@@ -356,7 +385,7 @@ After generating, report:
 ```markdown
 ## PRD Created
 
-**File**: `.claude/PRPs/prds/{name}.prd.md`
+**File**: `{resolved-prd-path}`
 
 ### Summary
 
@@ -389,7 +418,7 @@ After generating, report:
 
 ### To Start Implementation
 
-Run: `/prp-plan .claude/PRPs/prds/{name}.prd.md`
+Run: `/prp-plan {resolved-prd-path}`
 
 This will automatically select the next pending phase and create an implementation plan.
 ```
@@ -424,7 +453,7 @@ This will automatically select the next pending phase and create an implementati
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
-│  GENERATE: Write PRD to .claude/PRPs/prds/              │
+│  GENERATE: Write PRD to the resolved product-doc path   │
 └─────────────────────────────────────────────────────────┘
 ```
 
