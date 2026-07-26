@@ -1,6 +1,6 @@
 ---
 agent: agent
-description: Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/ — README, execution log with progress pointer + subagent plan, architecture, dev guide, roadmap, and optional test docs. Use for multi-session, multi-phase work.
+description: Generate a complete task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/ — README, execution log with progress pointer + subagent plan, architecture, dev guide, roadmap, and required test docs. Use for multi-session, multi-phase work.
 argument-hint: "<task-slug> [test] | [test] <task-slug>"
 ---
 
@@ -31,14 +31,18 @@ Do NOT use when:
 
 ## Parameters
 
-- `<task-slug>` (required unless interactive): english kebab-case, stable, no dates unless disambiguating. Examples: `ble-multi-device-fix`, `home-card-migration`.
-- `test` (optional): include test plan + test cases (7 docs instead of 5).
+- `<task-slug>` (required unless interactive): stable task name without dates unless disambiguating; follow the host project's documentation naming rules and primary documentation language, using lowercase kebab-case only as a fallback.
+- `test` (legacy optional marker): accepted for compatibility, but test plan and test cases are always included.
 
-**Implicit test-mode triggers** — if any of these appear in the invocation prompt **body** (not the slug), enable test mode automatically:
+**Test documents are mandatory for every invocation.** If any of these appear in
+the invocation prompt **body** (not the slug), treat the marker as confirmation
+of the default and do not change the output set:
 - Chinese: `测试`, `回归`, `自测`, `QA`, `验证`, `用例`
 - English: `test`, `regression`, `QA`, `verification`, `test case`, `test plan`
 
-Only inspect the prompt body. Do NOT match the slug (a slug like `foo-test-migration` must not trigger test mode).
+Only inspect the prompt body for confirmation. Do NOT infer task scope or
+requirement coverage from the slug (a slug like `foo-test-migration` is not a
+requirement).
 
 ## Execution Flow
 
@@ -50,7 +54,6 @@ Read the task description and extract: task name, core problem, affected modules
 ### Stage 2 — Clarify (only if missing)
 Ask at most 3 targeted questions, in a single batch — never one-by-one, never generic. Only clarify:
 - Slug, if not provided.
-- Test docs, if ambiguous (test keyword absent but task clearly touches a QA surface).
 - Source files, if the description is too abstract to know what is in scope.
 
 ### Stage 3 — Emit plan + WAIT
@@ -68,8 +71,8 @@ docs/plan/<task-slug>-<YYYY-MM-DD>/
 - 01-架构设计.md — core decisions
 - 02-开发规范.md — must/forbidden, code templates, anti-patterns
 - 03-修复路线图.md — phase breakdown, milestones, rollback
-- 04-测试计划.md — (only if test mode)
-- 05-测试用例清单.md — (only if test mode)
+- 04-测试计划.md — required test strategy
+- 05-测试用例清单.md — required test cases and regression matrix
 
 ## Detected stack
 <flutter | android | web | python | java | generic>
@@ -105,11 +108,11 @@ Only after the user confirms:
    - Read the pointer YAML, print `Detected progress snapshot: Phase <n> / <status>`.
    - Do NOT regenerate any doc that already exists on disk; print `Skipped (exists)` for each.
    - Only generate missing files. Append to the execution log instead of overwriting it.
-4. Write docs in order: `README.md` → `00-执行文档.md` → `01-架构设计.md` → `02-开发规范.md` → `03-修复路线图.md` → (`04-测试计划.md` → `05-测试用例清单.md` if test).
+4. Write docs in order: `README.md` → `00-执行文档.md` → `01-架构设计.md` → `02-开发规范.md` → `03-修复路线图.md` → `04-测试计划.md` → `05-测试用例清单.md`.
 5. Cross-link: README links to all; `00` links to `01-03`; each numbered doc has prev/next links.
 
 ### Stage 5 — Post-generation
-1. **Read-back verification (防丢失)**: list the target dir, confirm every expected file (5 standard / 7 test-mode) exists on disk and is non-empty. A formatter or sync hook can silently drop a file (observed: `00-执行文档.md` disappearing). Regenerate any missing/empty file. Print `✓ <file>` or `✗ <file> 缺失，已补写`.
+1. **Read-back verification (防丢失)**: list the target dir, confirm all 7 expected files exist on disk and are non-empty. A formatter or sync hook can silently drop a file (observed: `00-执行文档.md` disappearing). Regenerate any missing/empty file. Print `✓ <file>` or `✗ <file> 缺失，已补写`.
 2. Report total line count per file.
 3. Append a link to the new task subdir under the `Plan docs` section of `docs/README.md` (if such a section exists; otherwise suggest adding one).
 4. Remind the user that `.cursor/rules/*` and top-level usage guides were NOT modified.
@@ -124,8 +127,8 @@ docs/plan/<task-slug>-<YYYY-MM-DD>/
 ├── 01-架构设计.md         # required — core architectural decisions
 ├── 02-开发规范.md         # required — must/forbidden, templates, anti-patterns
 ├── 03-修复路线图.md       # required — phase breakdown, milestones, rollback
-├── 04-测试计划.md         # optional — strategy (entry/exit criteria, environment)
-└── 05-测试用例清单.md     # optional — structured cases, regression matrix
+├── 04-测试计划.md         # required — strategy (entry/exit criteria, environment)
+└── 05-测试用例清单.md     # required — structured cases, regression matrix
 ```
 
 ## Key File: 00-执行文档.md

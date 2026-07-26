@@ -19,7 +19,7 @@
 | `/ecc:plan-r`   | 规划 → 执行 → 代码审查 三阶段流水线           | [README](commands/plan-r/README.md)   |
 | `/ecc:plan-t`   | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-t/README.md)   |
 | `/ecc:plan-tr`  | 规划 → TDD → Code Review → CAS 原子合并流水线 | [README](commands/plan-tr/README.md)  |
-| `/ecc:plan-doc` | 生成模块化任务文档，落盘后重读契约和产品源并执行修订审计 | [README](commands/plan-doc/README.md) |
+| `/ecc:plan-doc` | 生成包含测试计划与测试用例的模块化任务文档，落盘后重读契约和产品源并执行修订审计 | [README](commands/plan-doc/README.md) |
 | `/ecc:execute-doc` | 逐 phase 执行 plan-doc 执行文档（同模型子代理执行、主代理审计、自动推进；强化停车规则 + 可选脚本编排器实现零停车） | [README](commands/execute-doc/README.md) |
 | `/ecc:brainstorming` | 动手前的设计探索，把已批准的设计交给 /ecc:plan | [README](commands/brainstorming/README.md) |
 | `/ecc:prp-plan` | 生成基于代码库的实现计划；优先写入 `docs/plan/`，无 `docs/` 时回退到 `.claude/PRPs/plans/` | [README](commands/prp-plan/README.md) |

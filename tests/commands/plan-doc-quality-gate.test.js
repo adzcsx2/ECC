@@ -58,6 +58,19 @@ test('keeps the main command lean and loads references at explicit checkpoints',
   );
 });
 
+test('requires test documents by default', () => {
+  const command = readCommand();
+  const contract = fs.readFileSync(referencePaths[0], 'utf8');
+  const qualityGate = fs.readFileSync(referencePaths[2], 'utf8');
+
+  assert.ok(command.includes('Test documents are mandatory for every invocation'));
+  assert.ok(command.includes('- 04-测试计划.md\n- 05-测试用例清单.md'));
+  assert.ok(command.includes('- test_mode: true'));
+  assert.ok(contract.includes('Generate exactly 7 files for every invocation'));
+  assert.ok(qualityGate.includes('confirm all 7 expected files are present'));
+  assert.ok(!contract.includes('test mode only'));
+});
+
 test('generates before re-reading the document contract for the final audit', () => {
   const command = readCommand();
   const bundle = readCommandBundle();

@@ -9,9 +9,9 @@ command invocation. Repairs must not trigger another audit pass.
 
 ## 1. Read-Back Verification
 
-List the target directory and confirm every expected file (5 standard or 7 in
-test mode) is present and non-empty. Regenerate any missing or empty file before
-auditing. Print `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
+List the target directory and confirm all 7 expected files are present and
+non-empty. Regenerate any missing or empty file before auditing. Print one line
+per file using `✓ <file> (<lines> lines)` or `✗ <file> 缺失，已补写`.
 
 ## 2. Document-contract conformance audit
 

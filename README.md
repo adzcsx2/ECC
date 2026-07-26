@@ -19,7 +19,7 @@ All commands install under the `/ecc:` namespace.
 | `/ecc:plan-r`   | Plan → Execute → Code Review pipeline                | [README](commands/plan-r/README.md)   |
 | `/ecc:plan-t`   | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-t/README.md)   |
 | `/ecc:plan-tr`  | Plan → TDD → Code Review → CAS atomic merge pipeline | [README](commands/plan-tr/README.md)  |
-| `/ecc:plan-doc` | Generate modular execution docs, then re-read the contract and product sources for a post-write repair audit | [README](commands/plan-doc/README.md) |
+| `/ecc:plan-doc` | Generate modular execution docs with required test plan/cases, then re-read the contract and product sources for a post-write repair audit | [README](commands/plan-doc/README.md) |
 | `/ecc:execute-doc` | Execute a plan-doc execution document phase by phase (same-model subagent, auto-advance; hardened stop-rules + optional script orchestrator for zero-stop) | [README](commands/execute-doc/README.md) |
 | `/ecc:brainstorming` | Pre-implementation design exploration; hands the approved design to /ecc:plan | [README](commands/brainstorming/README.md) |
 | `/ecc:prp-plan` | Generate a codebase-grounded implementation plan under `docs/plan/`, with `.claude/PRPs/plans/` fallback | [README](commands/prp-plan/README.md) |

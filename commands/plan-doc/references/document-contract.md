@@ -10,10 +10,15 @@ remembered templates when certifying the output.
 
 Directory: `docs/plan/<task-slug>-<YYYY-MM-DD>/`
 
-- `<task-slug>` is stable English kebab-case without an embedded date.
+- `<task-slug>` is a stable task name without an embedded date. It follows the
+  host project's documentation naming rules and primary documentation language;
+  lowercase kebab-case is only the fallback when the host project has no stricter
+  convention.
 - `<YYYY-MM-DD>` is the local generation date.
-- Generate exactly 5 standard files or 7 files in test mode. Do not create
-  nested task directories or an extra parallel-groups document.
+- Generate exactly 7 files for every invocation. Test documents are mandatory;
+  the legacy `test` argument is compatibility-only and does not change the
+  output set. Do not create nested task directories or an extra parallel-groups
+  document.
 
 ```text
 docs/plan/<task-slug>-<YYYY-MM-DD>/
@@ -22,12 +27,12 @@ docs/plan/<task-slug>-<YYYY-MM-DD>/
 ├── 01-架构设计.md
 ├── 02-开发规范.md
 ├── 03-修复路线图.md
-├── 04-测试计划.md       # test mode only
-└── 05-测试用例清单.md   # test mode only
+├── 04-测试计划.md
+└── 05-测试用例清单.md
 ```
 
 Write in this order: `README.md` → `00-执行文档.md` → `01` → `02` → `03`
-→ (`04` → `05` in test mode). README links to every document; `00` links to
+→ `04` → `05`. README links to every document; `00` links to
 `01-03`; each numbered document includes README and previous/next navigation.
 
 ## Document Responsibilities
@@ -45,9 +50,9 @@ Write in this order: `README.md` → `00-执行文档.md` → `01` → `02` → 
 - `03-修复路线图.md`: phases, dependencies, milestones, verification gates,
   rollback/recovery, and release sequencing.
 - `04-测试计划.md`: environments, strategy, entry/exit criteria, coverage and
-  regression scope, only in test mode.
+  regression scope.
 - `05-测试用例清单.md`: requirement-linked cases, negative/boundary cases, and
-  regression matrix, only in test mode.
+  regression matrix.
 
 ## `00-执行文档.md` Required Structure
 
@@ -144,7 +149,8 @@ Additional guardrails:
   existing documents, while Stage 5 may make minimal evidence-based repairs.
 - Never put architecture prose or code templates in `00`; use `01` and `02`.
 - Never modify protected non-product sources during generation.
-- Never trigger test mode from the slug itself.
+- Always generate the test documents; never infer task scope or requirement
+  coverage from the slug itself.
 - Never write abstract goal-only checklist items such as "实现 X" or "修复 Y".
 - Never finish on file-existence checks alone; the separate Stage 5 quality gate
   must pass.
