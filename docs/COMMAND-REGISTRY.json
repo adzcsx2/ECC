@@ -510,7 +510,7 @@
     },
     {
       "command": "plan-doc",
-      "description": "Generate and single-pass audit a task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/: README, execution log, architecture, dev guide, roadmap, and required test docs. Reconcile product requirements with executable steps and repair confirmed documentation defects once before handoff.",
+      "description": "Automatically derive the task slug and output path, then generate and single-pass audit a task-scoped documentation set under docs/plan/<task-slug>-YYYY-MM-DD/ without pre-write confirmation. Reconcile product requirements with executable steps and repair confirmed documentation defects once before handoff.",
       "type": "orchestration",
       "primaryAgents": [],
       "allAgents": [],

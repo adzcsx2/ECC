@@ -80,7 +80,8 @@ objective evidence the executor must collect.
    of truth.
 4. If sources conflict or a fix would choose/change product intent, do not
    guess. Add the conflict to `blockers`, set pointer status to `blocked`, and
-   ask the user for a product decision.
+   record the required product decision for handoff. Do not pause document
+   generation or ask for confirmation.
 5. Apply at most one consolidated repair pass for all findings from the single
    audit. Do not rerun, restart, or recursively invoke the document-contract,
    alignment, or robustness audit after repairs. If every confirmed finding

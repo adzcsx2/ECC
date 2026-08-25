@@ -6,6 +6,7 @@ const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const commandPath = path.join(repoRoot, 'commands', 'plan-doc.md');
+const readmePath = path.join(repoRoot, 'commands', 'plan-doc', 'README.md');
 const referencePaths = [
   path.join(repoRoot, 'commands', 'plan-doc', 'references', 'document-contract.md'),
   path.join(repoRoot, 'commands', 'plan-doc', 'references', 'subagent-routing.md'),
@@ -69,6 +70,35 @@ test('requires test documents by default', () => {
   assert.ok(contract.includes('Generate exactly 7 files for every invocation'));
   assert.ok(qualityGate.includes('confirm all 7 expected files are present'));
   assert.ok(!contract.includes('test mode only'));
+});
+
+test('auto-selects the slug, filenames, and output path without confirmation', () => {
+  const command = readCommand();
+  const contract = fs.readFileSync(referencePaths[0], 'utf8');
+  const readme = fs.readFileSync(readmePath, 'utf8');
+  const bundle = `${command}\n${contract}\n${readme}`;
+  const normalizedBundle = bundle.replace(/\s+/g, ' ');
+
+  for (const required of [
+    'derive `<task-slug>` automatically',
+    'Do not ask the user to confirm the generation plan, task slug, filenames, or output path',
+    'Continue directly to generation in the same turn',
+    'use the first free numeric suffix (`-2`, `-3`, ...)',
+    '无需确认任务名、文件名或文件路径',
+  ]) {
+    assert.ok(normalizedBundle.includes(required), `Expected automatic-generation rule: ${required}`);
+  }
+
+  for (const forbidden of [
+    'Emit plan and wait for confirmation',
+    'Waiting for confirmation',
+    'Do not create files before confirmation',
+    'Plan and user confirmation precede writes',
+    'Never generate before the Stage 3 confirmation',
+    'ask only before an exact-path destructive conflict',
+  ]) {
+    assert.ok(!bundle.includes(forbidden), `Unexpected confirmation gate: ${forbidden}`);
+  }
 });
 
 test('generates before re-reading the document contract for the final audit', () => {

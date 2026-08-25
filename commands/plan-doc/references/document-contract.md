@@ -3,18 +3,23 @@
 Read this file completely before emitting the Stage 3 plan. After every
 expected document is written or checkpoint-resolved, read it again immediately
 before the Stage 5 conformance audit. It is the source of truth for both the
-confirmed generation plan and the post-generation audit. Do not rely on
+resolved generation plan and the post-generation audit. Do not rely on
 remembered templates when certifying the output.
 
 ## Fixed Output Structure
 
 Directory: `docs/plan/<task-slug>-<YYYY-MM-DD>/`
 
-- `<task-slug>` is a stable task name without an embedded date. It follows the
-  host project's documentation naming rules and primary documentation language;
-  lowercase kebab-case is only the fallback when the host project has no stricter
-  convention.
+- `<task-slug>` is a stable task name without an embedded date. When the user
+  does not provide one, derive `<task-slug>` automatically from the request and
+  repository evidence using Stage 2. It follows the host project's documentation
+  naming rules and primary documentation language; lowercase kebab-case is only
+  the fallback when the host project has no stricter convention.
 - `<YYYY-MM-DD>` is the local generation date.
+- Select the output directory without confirmation. Reuse a compatible same-day
+  checkpoint; for `force-new`, an incompatible same-day directory, or any
+  destructive exact-path conflict, use the first free numeric suffix (`-2`,
+  `-3`, ...). Never overwrite unrelated or incompatible content.
 - Generate exactly 7 files for every invocation. Test documents are mandatory;
   the legacy `test` argument is compatibility-only and does not change the
   output set. Do not create nested task directories or an extra parallel-groups
@@ -123,7 +128,7 @@ Each item explicitly answers:
 
 Additional guardrails:
 
-- `P<N>.1` is always read-and-confirm only: inspect current state and append one
+- `P<N>.1` is always read-and-record only: inspect current state and append one
   findings paragraph to the execution log; make no code change.
 - Line numbers are hints, never coordinates. Pair every line hint with a stable
   symbol/section and say that line numbers drift.
@@ -141,9 +146,10 @@ Additional guardrails:
 
 ## Generation Guardrails
 
-- Never generate before the Stage 3 confirmation.
+- Never wait for a Stage 3 confirmation. The resolved Stage 3 plan flows through
+  Stage 3.5 and directly into Stage 4 generation in the same turn.
 - Do not require a redundant contract reread immediately before Stage 4 writes;
-  generate from the confirmed plan and Generation Handoff, then audit the
+  generate from the resolved plan and Generation Handoff, then audit the
   completed output against a fresh contract read in Stage 5.
 - Never overwrite a checkpointed `00-执行文档.md`; resume it. In Stage 4 skip
   existing documents, while Stage 5 may make minimal evidence-based repairs.
