@@ -1,15 +1,15 @@
-**Sprache:** [English](../../README.md) | [Deutsch](README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md)
+**Sprache:** [English](../../README.md) | [Deutsch](README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Українська](../uk-UA/README.md)
 
 # ECC
 
 ![ECC - das Harness-native Operator-System für agentische Arbeit](../../assets/hero.png)
 
-[![Stars](https://img.shields.io/github/stars/affaan-m/ECC?style=flat)](https://github.com/affaan-m/ECC/stargazers)
-[![Forks](https://img.shields.io/github/forks/affaan-m/ECC?style=flat)](https://github.com/affaan-m/ECC/network/members)
+[![Stars](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.ecc.tools%2Fbadge%2Fstars&style=flat)](https://github.com/affaan-m/ECC/stargazers)
+[![Forks](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.ecc.tools%2Fbadge%2Fforks&style=flat)](https://github.com/affaan-m/ECC/network/members)
 [![Contributors](https://img.shields.io/github/contributors/affaan-m/ECC?style=flat)](https://github.com/affaan-m/ECC/graphs/contributors)
 [![npm ecc-universal](https://img.shields.io/npm/dw/ecc-universal?label=ecc-universal%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-universal)
 [![npm ecc-agentshield](https://img.shields.io/npm/dw/ecc-agentshield?label=ecc-agentshield%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-agentshield)
-[![GitHub App Install](https://img.shields.io/badge/GitHub%20App-150%20installs-2ea44f?logo=github)](https://github.com/marketplace/ecc-tools)
+[![GitHub App Install](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.ecc.tools%2Fbadge%2Finstalls&logo=github)](https://github.com/marketplace/ecc-tools)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 ![Shell](https://img.shields.io/badge/-Shell-4EAA25?logo=gnu-bash&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -28,7 +28,7 @@
 **Language / 语言 / 語言 / Dil / Язык / Ngôn ngữ**
 
 [English](../../README.md) | [**Deutsch**](README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md)
- | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md)
+ | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Українська](../uk-UA/README.md)
 
 </div>
 
@@ -210,7 +210,7 @@ Die meisten Claude-Code-Nutzer sollten genau einen Installationspfad verwenden:
 
 - **Empfohlene Voreinstellung:** Installiere das Claude-Code-Plugin und kopiere dann nur die Rule-Ordner, die du tatsächlich willst.
 - **Verwende den manuellen Installer nur dann, wenn** du feinere Kontrolle wünschst, den Plugin-Pfad ganz vermeiden willst oder dein Claude-Code-Build Probleme hat, den selbst gehosteten Marketplace-Eintrag aufzulösen.
-- **Stapele Installationsmethoden nicht.** Das häufigste kaputte Setup ist: zuerst `/plugin install`, danach `install.sh --profile full` oder `npx ecc-install --profile full`.
+- **Stapele Installationsmethoden nicht.** Das häufigste kaputte Setup ist: zuerst `/plugin install`, danach `install.sh --profile full` oder `npx ecc-universal install --profile full`.
 
 Falls du bereits mehrere Installationen übereinandergelegt hast und Dinge doppelt aussehen, springe direkt zu [ECC zurücksetzen / deinstallieren](#ecc-zurücksetzen--deinstallieren).
 
@@ -225,7 +225,7 @@ Falls sich Hooks zu global anfühlen oder du nur ECCs Rules, Agents, Commands un
 ```powershell
 .\install.ps1 --profile minimal --target claude
 # oder
-npx ecc-install --profile minimal --target claude
+npx ecc-universal install --profile minimal --target claude
 ```
 
 Dieses Profil schließt `hooks-runtime` absichtlich aus.
@@ -247,7 +247,7 @@ Füge Hooks später nur hinzu, wenn du Laufzeit-Durchsetzung willst:
 Falls du nicht sicher bist, welches ECC-Profil oder welche Komponente du installieren sollst, frage den mitgelieferten Advisor aus jedem beliebigen Projekt:
 
 ```bash
-npx ecc consult "security reviews" --target claude
+npx ecc-universal consult "security reviews" --target claude
 ```
 
 Er liefert passende Komponenten, verwandte Profile sowie Preview-/Install-Befehle zurück. Verwende den Preview-Befehl vor der Installation, falls du den exakten Dateiplan inspizieren willst.
@@ -255,8 +255,8 @@ Er liefert passende Komponenten, verwandte Profile sowie Preview-/Install-Befehl
 Halte die Installation für produktive ML-/MLOps-Workflows opt-in und komponentenbezogen:
 
 ```bash
-npx ecc consult "mlops training model deployment" --target claude
-npx ecc install --profile minimal --target claude --with capability:machine-learning
+npx ecc-universal consult "mlops training model deployment" --target claude
+npx ecc-universal install --profile minimal --target claude --with capability:machine-learning
 ```
 
 ### Schritt 1: Plugin installieren (empfohlen)
@@ -285,7 +285,7 @@ Das ist beabsichtigt. Anthropic-Marketplace-/Plugin-Installationen werden über 
 
 > WARNING: **Wichtig:** Claude-Code-Plugins können `rules` nicht automatisch verteilen.
 >
-> Falls du ECC bereits über `/plugin install` installiert hast, **führe danach nicht `./install.sh --profile full`, `.\install.ps1 --profile full` oder `npx ecc-install --profile full` aus**. Das Plugin lädt ECC-Skills, -Commands und -Hooks bereits. Wird der vollständige Installer nach einer Plugin-Installation ausgeführt, kopiert er dieselben Oberflächen in deine Benutzerverzeichnisse und kann doppelte Skills sowie doppeltes Laufzeitverhalten erzeugen.
+> Falls du ECC bereits über `/plugin install` installiert hast, **führe danach nicht `./install.sh --profile full`, `.\install.ps1 --profile full` oder `npx ecc-universal install --profile full` aus**. Das Plugin lädt ECC-Skills, -Commands und -Hooks bereits. Wird der vollständige Installer nach einer Plugin-Installation ausgeführt, kopiert er dieselben Oberflächen in deine Benutzerverzeichnisse und kann doppelte Skills sowie doppeltes Laufzeitverhalten erzeugen.
 >
 > Kopiere für Plugin-Installationen manuell nur die `rules/`-Verzeichnisse, die du willst, nach `~/.claude/rules/ecc/`. Beginne mit `rules/common` plus einem Sprach- oder Framework-Paket, das du tatsächlich verwendest. Kopiere nicht jedes Rules-Verzeichnis, es sei denn, du willst diesen gesamten Kontext ausdrücklich in Claude haben.
 >
@@ -320,7 +320,7 @@ Copy-Item -Recurse rules/typescript "$HOME/.claude/rules/ecc/"
 
 # Vollständig manueller ECC-Installationspfad (nutze diesen statt /plugin install)
 # .\install.ps1 --profile full
-# npx ecc-install --profile full
+# npx ecc-universal install --profile full
 ```
 
 Anweisungen zur manuellen Installation findest du in der README im `rules/`-Ordner. Kopiere Rules manuell stets als ganzes Sprachverzeichnis (zum Beispiel `rules/common` oder `rules/golang`), nicht die darin enthaltenen Dateien, damit relative Verweise weiterhin funktionieren und Dateinamen nicht kollidieren.
@@ -336,7 +336,7 @@ Verwende dies nur, wenn du den Plugin-Pfad absichtlich überspringst:
 ```powershell
 .\install.ps1 --profile full
 # oder
-npx ecc-install --profile full
+npx ecc-universal install --profile full
 ```
 
 Wenn du diesen Pfad wählst, höre dort auf. Führe nicht zusätzlich `/plugin install` aus.
@@ -896,13 +896,15 @@ cp -r rules/arkts ~/.claude/rules/ecc/
 
 # Zuerst Skills kopieren (primäre Workflow-Oberfläche)
 # Empfohlen (neue Nutzer): nur Kern-/allgemeine Skills
-mkdir -p ~/.claude/skills/ecc
-cp -r .agents/skills/* ~/.claude/skills/ecc/
-cp -r skills/search-first ~/.claude/skills/ecc/
+mkdir -p ~/.claude/skills
+cp -r .agents/skills/* ~/.claude/skills/
+cp -r skills/search-first ~/.claude/skills/
+# Claude Code lädt Skills nur aus direkten Unterverzeichnissen von ~/.claude/skills.
+# Manuelle Installationen nicht unter ~/.claude/skills/ecc/ verschachteln.
 
 # Optional: nischen-/framework-spezifische Skills nur bei Bedarf hinzufügen
 # for s in django-patterns django-tdd laravel-patterns springboot-patterns quarkus-patterns; do
-# cp -r skills/$s ~/.claude/skills/ecc/
+# cp -r skills/$s ~/.claude/skills/
 # done
 
 # Optional: gepflegte Slash-Command-Kompatibilität während der Migration behalten
@@ -1149,7 +1151,7 @@ Ja. ECC ist Cross-Platform:
 - **OpenCode**: Vollständige Plugin-Unterstützung in `.opencode/`. Siehe [OpenCode-Unterstützung](#opencode-unterstützung).
 - **Codex**: Erstklassige Unterstützung sowohl für die macOS-App als auch die CLI, mit Adapter-Drift-Guards und SessionStart-Fallback. Siehe PR [#257](https://github.com/affaan-m/ECC/pull/257).
 - **GitHub Copilot (VS Code)**: Instruction- und Prompt-Schicht über `.github/copilot-instructions.md`, `.vscode/settings.json` und `.github/prompts/`. Siehe [GitHub-Copilot-Unterstützung](#github-copilot-unterstützung).
-- **Antigravity**: Eng integriertes Setup für Workflows, Skills und abgeflachte Rules in `.agent/`. Siehe [Antigravity-Leitfaden](../../docs/ANTIGRAVITY-GUIDE.md).
+- **Antigravity**: Eng integriertes Setup für Workflows, Skills und abgeflachte Rules in `.agents/`. Siehe [Antigravity-Leitfaden](../../docs/ANTIGRAVITY-GUIDE.md).
 - **JoyCode / CodeBuddy**: Projektlokale Adapter für selektive Installation von Commands, Agents, Skills und abgeflachten Rules. Siehe [JoyCode-Adapter-Leitfaden](../../docs/JOYCODE-GUIDE.md).
 - **Qwen CLI**: Adapter für selektive Installation im Home-Verzeichnis für Commands, Agents, Skills, Rules und Qwen-Konfiguration. Siehe [Qwen-CLI-Adapter-Leitfaden](../../docs/QWEN-GUIDE.md).
 - **Zed**: Projektlokaler Adapter für selektive Installation von `.zed/settings.json`, abgeflachten Rules, Commands, Agents und Skills.
@@ -1531,10 +1533,9 @@ ECC bietet **GitHub-Copilot-Unterstützung** für VS Code über das native Instr
 | Komponente | Datei | Zweck |
 |-----------|------|---------|
 | Kern-Instructions | `.github/copilot-instructions.md` | Stets geladene Rules: Coding-Style, Sicherheit, Testing, Git-Workflow |
-| VS-Code-Einstellungen | `.vscode/settings.json` | Aufgabenspezifische Instruction-Dateien für Codegenerierung, Testgenerierung, Review und Commit-Nachrichten |
+| VS-Code-Einstellungen | `.vscode/settings.json` | Aufgabenspezifische Instruction-Dateien für Codegenerierung, Testgenerierung und Commit-Nachrichten |
 | Plan-Prompt | `.github/prompts/plan.prompt.md` | Phasenweise Implementierungsplanung |
 | TDD-Prompt | `.github/prompts/tdd.prompt.md` | Red-Green-Improve-Zyklus |
-| Code-Review-Prompt | `.github/prompts/code-review.prompt.md` | Qualitäts- und Sicherheitsreview |
 | Security-Review-Prompt | `.github/prompts/security-review.prompt.md` | Tiefe, OWASP-orientierte Sicherheitsanalyse |
 | Build-Fix-Prompt | `.github/prompts/build-fix.prompt.md` | Systematische Behebung von Build- und CI-Fehlern |
 | Refactor-Prompt | `.github/prompts/refactor.prompt.md` | Beseitigung von totem Code und Vereinfachung |
@@ -1547,16 +1548,16 @@ Die eingecheckte `.vscode/settings.json` aktiviert `chat.promptFiles`, sodass VS
 So verwendest du die Workflow-Prompts in Copilot Chat:
 1. Öffne das Copilot-Chat-Panel in VS Code.
 2. Klicke auf das **Büroklammer-/Anhängen-Symbol** und wähle **Prompt...**, oder tippe `/` und wähle einen Prompt.
-3. Wähle den Prompt aus (z. B. `plan`, `tdd`, `code-review`).
+3. Wähle den Prompt aus (z. B. `plan`, `tdd`, `security-review`).
 
 ### Wie es funktioniert
 
 GitHub Copilot in VS Code liest zwei Dateitypen automatisch:
 
 - **`.github/copilot-instructions.md`** — Instructions auf Repository-Ebene, die in jede Copilot-Chat-Anfrage injiziert werden. Enthält ECCs Kern-Coding-Standards, Sicherheits-Checkliste, Testanforderungen und Git-Workflow.
-- **`.github/prompts/*.prompt.md`** — wiederverwendbare Prompt-Dateien, die Nutzer bei Bedarf aufrufen. Jeder Prompt führt Copilot durch einen bestimmten ECC-Workflow (plan → TDD → review → ship).
+- **`.github/prompts/*.prompt.md`** — wiederverwendbare Prompt-Dateien, die Nutzer bei Bedarf aufrufen. Jeder Prompt führt Copilot durch einen bestimmten ECC-Workflow wie Planung, TDD, Security-Review, Build-Fix oder Refactor.
 
-Die **`.vscode/settings.json`** fügt aufgabenspezifische Instruction-Overlays hinzu, sodass Copilot je nachdem, ob du Code generierst, Tests schreibst, eine Auswahl reviewst oder eine Commit-Nachricht entwirfst, den richtigen Kontext erhält.
+Die **`.vscode/settings.json`** fügt aufgabenspezifische Instruction-Overlays hinzu, sodass Copilot für Codegenerierung, Testgenerierung und Commit-Nachrichten den richtigen Kontext erhält.
 
 ### Feature-Abdeckung
 
@@ -1566,7 +1567,7 @@ Die **`.vscode/settings.json`** fügt aufgabenspezifische Instruction-Overlays h
 | Sicherheits-Checkliste | Stets aktiv + `security-review`-Prompt |
 | Testing / TDD | Stets aktiv + `tdd`-Prompt |
 | Implementierungsplanung | `plan`-Prompt |
-| Code-Review | `code-review`-Prompt |
+| Code-Review | Externes PR-Review über CodeRabbit + Greptile |
 | Behebung von Build-Fehlern | `build-fix`-Prompt |
 | Refactoring | `refactor`-Prompt |
 | Commit-Nachrichten-Format | Aufgabenspezifische Instruction in `settings.json` |
@@ -1586,7 +1587,7 @@ ECC ist das **erste Plugin, das jedes große KI-Coding-Tool ausreizt**. So vergl
 | Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode | GitHub Copilot |
 |---------|------------|------------|-----------|----------|----------------|
 | **Agents** | 60 | Gemeinsam (AGENTS.md) | Gemeinsam (AGENTS.md) | 12 | Nicht verfügbar |
-| **Commands** | 75 | Gemeinsam | Instruction-basiert | 35 | 6 Prompts |
+| **Commands** | 75 | Gemeinsam | Instruction-basiert | 35 | 5 Prompts |
 | **Skills** | 232 | Gemeinsam | 10 (natives Format) | 37 | Über Instructions |
 | **Hook-Events** | 8 Typen | 15 Typen | Noch keine | 11 Typen | Keine |
 | **Hook-Skripte** | 20+ Skripte | 16 Skripte (DRY-Adapter) | Nicht verfügbar | Plugin-Hooks | Nicht verfügbar |

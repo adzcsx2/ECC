@@ -63,6 +63,26 @@ function runTests() {
     assert.deepStrictEqual(parsed.languages, []);
   })) passed++; else failed++;
 
+  if (test('parses explicit hook consent flags', () => {
+    const enabled = parseInstallArgs([
+      'node',
+      'scripts/install-apply.js',
+      '--profile', 'core',
+      '--enable-hooks',
+    ]);
+    const declined = parseInstallArgs([
+      'node',
+      'scripts/install-apply.js',
+      '--profile', 'core',
+      '--no-hooks',
+    ]);
+
+    assert.strictEqual(enabled.enableHooks, true);
+    assert.strictEqual(enabled.noHooks, false);
+    assert.strictEqual(declined.enableHooks, false);
+    assert.strictEqual(declined.noHooks, true);
+  })) passed++; else failed++;
+
   if (test('requires a --locale value', () => {
     assert.throws(
       () => parseInstallArgs([
@@ -160,12 +180,14 @@ function runTests() {
       moduleIds: [],
       includeComponentIds: ['lang:typescript'],
       excludeComponentIds: ['capability:media'],
-      languages: []
+      languages: [],
+      enableHooks: true,
     });
 
     assert.strictEqual(request.mode, 'manifest');
     assert.strictEqual(request.target, 'cursor');
     assert.strictEqual(request.profileId, 'developer');
+    assert.strictEqual(request.hookConsent, 'enabled');
     assert.deepStrictEqual(request.includeComponentIds, ['lang:typescript']);
     assert.deepStrictEqual(request.excludeComponentIds, ['capability:media']);
     assert.deepStrictEqual(request.legacyLanguages, []);
@@ -227,21 +249,34 @@ function runTests() {
     );
   })) passed++; else failed++;
 
-  if (test('defaults to full profile when no install selection is provided', () => {
-    const result = normalizeInstallRequest({
-      target: 'claude',
-      profileId: null,
-      moduleIds: [],
-      includeComponentIds: [],
-      excludeComponentIds: [],
-      languages: [],
-      help: false
-    });
-    assert.strictEqual(result.mode, 'manifest');
-    assert.strictEqual(result.target, 'claude');
-    assert.strictEqual(result.profileId, 'full');
-    assert.deepStrictEqual(result.moduleIds, []);
-    assert.deepStrictEqual(result.includeComponentIds, []);
+  if (test('rejects --no-hooks with an explicit hooks-runtime selection', () => {
+    assert.throws(
+      () => normalizeInstallRequest({
+        target: 'claude',
+        profileId: null,
+        moduleIds: ['hooks-runtime'],
+        includeComponentIds: [],
+        excludeComponentIds: [],
+        languages: [],
+        noHooks: true,
+      }),
+      /--no-hooks cannot be combined/
+    );
+  })) passed++; else failed++;
+
+  if (test('rejects empty install requests when not asking for help', () => {
+    assert.throws(
+      () => normalizeInstallRequest({
+        target: 'claude',
+        profileId: null,
+        moduleIds: [],
+        includeComponentIds: [],
+        excludeComponentIds: [],
+        languages: [],
+        help: false
+      }),
+      /No install profile, module IDs, included components, or legacy languages/
+    );
   })) passed++; else failed++;
 
   console.log(`\nResults: Passed: ${passed}, Failed: ${failed}`);

@@ -44,6 +44,7 @@ yarn-error.log*
 .pnpm-debug.log*
 .yarn/
 lerna-debug.log*
+*.tgz
 
 # Build outputs
 dist/
@@ -81,9 +82,6 @@ marketing/
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
-# ECC plan-tr 隔离 worktree（本地临时，禁止提交/推送）
-.ecc-worktrees/
-
 # Temporary files
 tmp/
 temp/
@@ -101,7 +99,11 @@ ecc2/target/
 # Generated lock files in tool subdirectories
 .opencode/package-lock.json
 .opencode/node_modules/
+
+# yarn is the canonical package manager for this repo (see package.json
+# "packageManager"); ignore stray lockfiles from running another manager locally
+/bun.lock
+/bun.lockb
 assets/images/security/badrudi-exploit.mp4
 
-# CodeGraph index
-.codegraph/
+.aider*

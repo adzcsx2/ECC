@@ -232,20 +232,6 @@ function runTests() {
     assert.deepStrictEqual(request.excludeComponentIds, ['capability:media', 'capability:social']);
   })) passed++; else failed++;
 
-  if (test('default full profile preserves an explicit codex target', () => {
-    const request = normalizeInstallRequest({
-      target: 'codex',
-      profileId: null,
-      moduleIds: [],
-      includeComponentIds: [],
-      excludeComponentIds: [],
-      languages: [],
-    });
-    assert.strictEqual(request.mode, 'manifest');
-    assert.strictEqual(request.target, 'codex');
-    assert.strictEqual(request.profileId, 'full');
-  })) passed++; else failed++;
-
   // ─── Component Catalog Validation ───
 
   if (test('component catalog includes lang: family entries', () => {
@@ -663,6 +649,7 @@ function runTests() {
         scriptPath,
         '--profile', 'core',
         '--with', 'capability:security',
+        '--enable-hooks',
       ], {
         cwd: projectDir,
         env: { ...process.env, HOME: homeDir },
@@ -672,7 +659,7 @@ function runTests() {
 
       const claudeRoot = path.join(homeDir, '.claude');
       // Security skill should be installed (from --with)
-      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'security-review', 'SKILL.md')),
+      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'security-review', 'SKILL.md')),
         'Should install security-review skill from --with');
       // Core profile modules should be installed
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'common', 'coding-style.md')),
@@ -682,42 +669,10 @@ function runTests() {
       const statePath = path.join(claudeRoot, 'ecc', 'install-state.json');
       const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
       assert.strictEqual(state.request.profile, 'core');
+      assert.strictEqual(state.request.hookConsent, 'enabled');
       assert.deepStrictEqual(state.request.includeComponents, ['capability:security']);
       assert.deepStrictEqual(state.request.excludeComponents, []);
       assert.ok(state.resolution.selectedModules.includes('security'));
-    } finally {
-      fs.rmSync(homeDir, { recursive: true, force: true });
-      fs.rmSync(projectDir, { recursive: true, force: true });
-    }
-  })) passed++; else failed++;
-
-  if (test('end-to-end: explicit claude target syncs Codex command skills without prompt aliases by default', () => {
-    const { execFileSync } = require('child_process');
-    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'install-apply.js');
-    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selective-codex-sync-'));
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selective-codex-sync-project-'));
-
-    try {
-      fs.mkdirSync(path.join(homeDir, '.codex'), { recursive: true });
-
-      execFileSync('node', [
-        scriptPath,
-        '--profile', 'core',
-        '--target', 'claude',
-      ], {
-        cwd: projectDir,
-        env: { ...process.env, HOME: homeDir, ECC_SYNC_CODEX_COMMANDS: '1' },
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-plan.md');
-      const skillPath = path.join(homeDir, '.agents', 'skills', 'ecc-plan', 'SKILL.md');
-      assert.ok(!fs.existsSync(promptPath), 'Should not sync ecc-plan prompt alias by default');
-      assert.ok(fs.existsSync(skillPath), 'Should sync ecc-plan command skill');
-
-      const skill = fs.readFileSync(skillPath, 'utf8');
-      assert.ok(skill.includes('read the source command completely before acting'), 'Skill should read source command on use');
     } finally {
       fs.rmSync(homeDir, { recursive: true, force: true });
       fs.rmSync(projectDir, { recursive: true, force: true });
@@ -735,6 +690,7 @@ function runTests() {
         scriptPath,
         '--profile', 'developer',
         '--without', 'capability:orchestration',
+        '--enable-hooks',
       ], {
         cwd: projectDir,
         env: { ...process.env, HOME: homeDir },
@@ -744,17 +700,18 @@ function runTests() {
 
       const claudeRoot = path.join(homeDir, '.claude');
       // Orchestration skills should NOT be installed (from --without)
-      assert.ok(!fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'dmux-workflows', 'SKILL.md')),
+      assert.ok(!fs.existsSync(path.join(claudeRoot, 'skills', 'dmux-workflows', 'SKILL.md')),
         'Should not install orchestration skills');
       // Developer profile base modules should be installed
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'common', 'coding-style.md')),
         'Should install core rules');
-      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'tdd-workflow', 'SKILL.md')),
+      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'tdd-workflow', 'SKILL.md')),
         'Should install workflow skills');
 
       const statePath = path.join(claudeRoot, 'ecc', 'install-state.json');
       const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
       assert.strictEqual(state.request.profile, 'developer');
+      assert.strictEqual(state.request.hookConsent, 'enabled');
       assert.deepStrictEqual(state.request.excludeComponents, ['capability:orchestration']);
       assert.ok(!state.resolution.selectedModules.includes('orchestration'));
     } finally {
@@ -782,7 +739,7 @@ function runTests() {
 
       const claudeRoot = path.join(homeDir, '.claude');
       // framework-language skill (from lang:typescript) should be installed
-      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'coding-standards', 'SKILL.md')),
+      assert.ok(fs.existsSync(path.join(claudeRoot, 'skills', 'coding-standards', 'SKILL.md')),
         'Should install framework-language skills');
       // Its dependencies should be installed
       assert.ok(fs.existsSync(path.join(claudeRoot, 'rules', 'ecc', 'common', 'coding-style.md')),
@@ -818,11 +775,11 @@ function runTests() {
 
       const claudeRoot = path.join(homeDir, '.claude');
       assert.ok(
-        fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'continuous-learning-v2', 'SKILL.md')),
+        fs.existsSync(path.join(claudeRoot, 'skills', 'continuous-learning-v2', 'SKILL.md')),
         'Should install continuous-learning-v2'
       );
       assert.ok(
-        !fs.existsSync(path.join(claudeRoot, 'skills', 'ecc', 'tdd-workflow', 'SKILL.md')),
+        !fs.existsSync(path.join(claudeRoot, 'skills', 'tdd-workflow', 'SKILL.md')),
         'Should not install unrelated workflow-quality skills'
       );
 

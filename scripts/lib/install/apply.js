@@ -1,17 +1,68 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const {
+  hasExplicitCommitAttributionPreference,
+  withCommitAttributionDisabled,
+} = require('../claude-commit-attribution');
 const { writeInstallState } = require('../install-state');
+const { assertHookConsentReady, planMaterializesHookRuntime } = require('./hook-consent');
 const { filterMcpConfig, parseDisabledMcpServers } = require('../mcp-config');
+const { assertWithinTrustedRoot } = require('../path-safety');
+const {
+  assertSafeClaudeSkillOperation,
+  prepareClaudeSkillMigration,
+  removeLegacyClaudeSkillFiles,
+} = require('./claude-skill-migration');
+const { cleanupLegacyAntigravityInstall } = require('./antigravity-legacy-migration');
+const { cleanupLegacyOpencodeInstall } = require('./opencode-legacy-migration');
+const { buildInstallIndex, rewriteRelativeLinks } = require('./link-rewrite');
+const { adaptAntigravityAgent } = require('./antigravity-agent');
+
+function isMarkdownPath(filePath) {
+  return /\.(md|mdx|markdown)$/i.test(String(filePath || ''));
+}
+
+function transformInstallContent(operation, content) {
+  if (!operation.contentTransform) {
+    return content;
+  }
+  if (operation.contentTransform === 'antigravity-agent-frontmatter') {
+    return adaptAntigravityAgent(content, operation.sourceRelativePath);
+  }
+  throw new Error(`Unknown install content transform: ${operation.contentTransform}`);
+}
+
+// Map every copy-file operation to { sourceRel, destRel } so relative links in
+// namespaced markdown can be rewritten to the file's actual installed location
+// (issue #2340). Returns null when the plan lacks the data needed to do so.
+function buildLinkIndexForPlan(plan) {
+  if (!plan || !plan.targetRoot || !Array.isArray(plan.operations)) {
+    return null;
+  }
+  const mappings = [];
+  for (const operation of plan.operations) {
+    if (operation.kind === 'copy-file' && operation.sourceRelativePath) {
+      mappings.push({
+        sourceRel: operation.sourceRelativePath,
+        destRel: path.relative(plan.targetRoot, operation.destinationPath),
+      });
+    }
+  }
+  return buildInstallIndex(mappings);
+}
 
 function readJsonObject(filePath, label) {
   let parsed;
   try {
     parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    throw new Error(`Failed to parse ${label} at ${filePath}: ${error.message}`);
+    const wrappedError = new Error(`Failed to parse ${label} at ${filePath}: ${error.message}`);
+    wrappedError.code = error.code;
+    throw wrappedError;
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -19,6 +70,88 @@ function readJsonObject(filePath, label) {
   }
 
   return parsed;
+}
+
+function readOptionalJsonObject(filePath, label) {
+  try {
+    return readJsonObject(filePath, label);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {};
+    }
+    throw error;
+  }
+}
+
+function readInstalledFileNoFollow(plan, operation) {
+  assertSafeInstallOperation(plan, operation);
+  assertSafeClaudeSkillOperation(plan, operation);
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+  let descriptor;
+  try {
+    descriptor = fs.openSync(operation.destinationPath, flags);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+
+  try {
+    const openedStat = fs.fstatSync(descriptor, { bigint: true });
+    const finalPathStat = fs.lstatSync(operation.destinationPath, { bigint: true });
+    if (finalPathStat.isSymbolicLink() || !finalPathStat.isFile()) {
+      return null;
+    }
+    const identityMatches = openedStat.ino === finalPathStat.ino
+      && (!openedStat.dev || !finalPathStat.dev || openedStat.dev === finalPathStat.dev);
+    if (!openedStat.isFile() || !identityMatches) {
+      throw new Error(
+        `Refusing to hash changed install destination: ${operation.destinationPath}`
+      );
+    }
+    // Revalidate the full path after opening. The descriptor pins the file so
+    // the digest and metadata refer to the same object.
+    assertSafeInstallOperation(plan, operation);
+    assertSafeClaudeSkillOperation(plan, operation);
+    return fs.readFileSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function stateWithContentDigests(state, plan) {
+  const currentDestinations = new Set((plan.operations || [])
+    .filter(operation => operation.destinationPath)
+    .map(operation => {
+      const resolved = path.resolve(operation.destinationPath);
+      return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+    }));
+  return {
+    ...state,
+    operations: (state.operations || []).map(operation => {
+      if (!operation.destinationPath) {
+        return { ...operation };
+      }
+      const resolved = path.resolve(operation.destinationPath);
+      const destinationKey = process.platform === 'win32'
+        ? resolved.toLowerCase()
+        : resolved;
+      if (!currentDestinations.has(destinationKey)) {
+        return { ...operation };
+      }
+      const installedContent = readInstalledFileNoFollow(plan, operation);
+      if (installedContent === null) {
+        return { ...operation };
+      }
+      return {
+        ...operation,
+        contentSha256: crypto.createHash('sha256')
+          .update(installedContent)
+          .digest('hex'),
+      };
+    }),
+  };
 }
 
 function cloneJsonValue(value) {
@@ -53,6 +186,52 @@ function formatJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function shouldSetClaudeCommitAttributionPreference(plan) {
+  if (!plan?.adapter || !['claude', 'claude-project'].includes(plan.adapter.target)) {
+    return false;
+  }
+
+  return plan.operations.some(operation => {
+    if (typeof operation?.destinationPath !== 'string') {
+      return false;
+    }
+    const relativePath = path.relative(plan.targetRoot, operation.destinationPath);
+    return relativePath && !relativePath.startsWith(`docs${path.sep}`) && relativePath !== 'docs';
+  });
+}
+
+function writeClaudeCommitAttributionPreference(settingsPath) {
+  // Read once rather than probing with existsSync first. Checking for the file and
+  // then writing it is a file system race (CodeQL js/file-system-race), and a
+  // missing file is simply the fresh-install case.
+  let settings;
+  try {
+    settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      // Unreadable or malformed settings belong to the user; leave them untouched.
+      return false;
+    }
+    settings = {};
+  }
+
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return false;
+  }
+
+  if (hasExplicitCommitAttributionPreference(settings)) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(
+    settingsPath,
+    formatJson(withCommitAttributionDisabled(settings)),
+    'utf8'
+  );
+  return true;
+}
+
 function replacePluginRootPlaceholders(value, pluginRoot) {
   if (!pluginRoot) {
     return value;
@@ -78,14 +257,49 @@ function replacePluginRootPlaceholders(value, pluginRoot) {
   return value;
 }
 
-function findHooksSourcePath(plan, hooksDestinationPath) {
-  const operation = plan.operations.find(item => item.destinationPath === hooksDestinationPath);
-  return operation ? operation.sourcePath : null;
+function findHooksOperation(plan, hooksDestinationPath) {
+  return plan.operations.find(item => (
+    item.destinationPath === hooksDestinationPath
+    && item.moduleId === 'hooks-runtime'
+    && typeof item.sourcePath === 'string'
+  ));
 }
 
 function isMcpConfigPath(filePath) {
   const basename = path.basename(String(filePath || ''));
   return basename === '.mcp.json' || basename === 'mcp.json';
+}
+
+function assertSafeInstallOperation(plan, operation) {
+  if (!operation || typeof operation.destinationPath !== 'string') {
+    throw new Error('Refusing to apply install operation: missing destination path.');
+  }
+
+  const targetRoot = plan && plan.targetRoot;
+  assertWithinTrustedRoot(operation.destinationPath, targetRoot, 'install ECC file');
+
+  const resolvedRoot = path.resolve(targetRoot);
+  const resolvedTarget = path.resolve(operation.destinationPath);
+  const relativePath = path.relative(resolvedRoot, resolvedTarget);
+  const segments = relativePath ? relativePath.split(path.sep) : [];
+  for (const segmentIndex of Array.from({ length: segments.length + 1 }, (_value, index) => index)) {
+    const currentPath = segmentIndex === 0
+      ? resolvedRoot
+      : path.join(resolvedRoot, ...segments.slice(0, segmentIndex));
+    try {
+      const stats = fs.lstatSync(currentPath);
+      if (stats.isSymbolicLink()) {
+        throw new Error(
+          `Refusing to install ECC file through symlinked path: '${currentPath}'.`
+        );
+      }
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        break;
+      }
+      throw error;
+    }
+  }
 }
 
 function buildResolvedClaudeHooks(plan) {
@@ -95,7 +309,11 @@ function buildResolvedClaudeHooks(plan) {
 
   const pluginRoot = plan.targetRoot;
   const hooksDestinationPath = path.join(plan.targetRoot, 'hooks', 'hooks.json');
-  const hooksSourcePath = findHooksSourcePath(plan, hooksDestinationPath) || hooksDestinationPath;
+  const hooksOperation = findHooksOperation(plan, hooksDestinationPath);
+  if (!hooksOperation) {
+    return null;
+  }
+  const hooksSourcePath = hooksOperation.sourcePath;
   if (!fs.existsSync(hooksSourcePath)) {
     return null;
   }
@@ -107,6 +325,7 @@ function buildResolvedClaudeHooks(plan) {
   }
 
   return {
+    hooksOperation,
     hooksDestinationPath,
     resolvedHooksConfig: {
       ...hooksConfig,
@@ -115,292 +334,218 @@ function buildResolvedClaudeHooks(plan) {
   };
 }
 
-/**
- * Collect a directory and its ancestors up to maxDepth levels.
- * Starting from the directory itself (not its parent).
- */
-function collectSelfAndParentDirs(dirs, maxDepth) {
-  const result = new Set();
-  for (const dir of dirs) {
-    let current = dir;
-    for (let i = 0; i <= maxDepth; i += 1) {
-      if (result.has(current)) {
-        break;
-      }
-      result.add(current);
-      current = path.dirname(current);
-    }
-  }
-  return result;
+function previewInstallPlan(plan) {
+  const migration = prepareClaudeSkillMigration(plan);
+  const hookConsentWarnings = planMaterializesHookRuntime(plan) && plan.hookConsent !== 'enabled'
+    ? ['Applying this plan requires an explicit hook decision: --enable-hooks or --no-hooks.']
+    : [];
+  return {
+    ...plan,
+    statePreview: migration.finalState,
+    plannedOperations: [...plan.operations],
+    operations: migration.appliedOperations,
+    skippedOperations: migration.skippedOperations,
+    warnings: [
+      ...(Array.isArray(plan.warnings) ? plan.warnings : []),
+      ...migration.warnings,
+      ...hookConsentWarnings,
+    ],
+    applied: false,
+  };
 }
 
-/**
- * Remove stale managed files from the destination that are no longer
- * present in the new install plan.
- *
- * Uses two complementary strategies:
- * 1. State-based: compares old install-state operations with the new plan
- * 2. Scan-based: scans managed namespace directories on disk for files not
- *    in the new plan (handles the case where install-state was already
- *    updated without cleaning up stale files)
- */
-function cleanupStaleManagedFiles(plan) {
-  const removedFiles = [];
-  const removedDirs = [];
-
-  const newManagedOps = plan.operations.filter(
-    op => op.kind === 'copy-file' && op.ownership === 'managed'
-  );
-  const newDestPaths = new Set(newManagedOps.map(op => op.destinationPath));
-
-  // Strategy 1: state-based cleanup (compare with old install-state)
-  const stateResult = cleanupFromOldState(plan, newDestPaths);
-  removedFiles.push(...stateResult.removedFiles);
-  const candidateDirsFromState = stateResult.candidateDirs;
-
-  // Strategy 2: scan-based cleanup (find orphaned files on disk)
-  const scanResult = cleanupOrphanedFiles(plan, newManagedOps, newDestPaths);
-  removedFiles.push(...scanResult.removedFiles);
-  removedDirs.push(...scanResult.removedDirs);
-
-  // Merge candidate dirs from both strategies
-  const allCandidateDirs = new Set([
-    ...candidateDirsFromState,
-    ...scanResult.candidateDirs,
-  ]);
-
-  // Remove empty directories (up to 3 levels deep)
-  const parentDirs = collectSelfAndParentDirs(allCandidateDirs, 3);
-  const allNewDirs = collectSelfAndParentDirs(newDestPaths, 3);
-
-  for (const dir of parentDirs) {
-    if (allNewDirs.has(dir)) {
-      continue;
-    }
-
-    if (!fs.existsSync(dir)) {
-      continue;
-    }
-
-    try {
-      const entries = fs.readdirSync(dir);
-      if (entries.length === 0) {
-        fs.rmdirSync(dir);
-        removedDirs.push(dir);
-      }
-    } catch (_err) {
-      // Non-critical: skip dirs that cannot be removed
-    }
+function applyInstallPlan(plan, dependencies = {}) {
+  assertHookConsentReady(plan);
+  const persistInstallState = dependencies.writeInstallState || writeInstallState;
+  const beforeInstallStateRead = dependencies.beforeInstallStateRead;
+  const beforeOperationWrite = dependencies.beforeOperationWrite;
+  const beforeInstallStateWrite = dependencies.beforeInstallStateWrite;
+  if (typeof beforeInstallStateRead === 'function') {
+    beforeInstallStateRead({ plan });
   }
-
-  return { removedFiles, removedDirs };
-}
-
-/**
- * State-based cleanup: remove files recorded in old install-state
- * that are no longer in the new plan.
- */
-function cleanupFromOldState(plan, newDestPaths) {
-  const removedFiles = [];
-  const candidateDirs = new Set();
-
-  if (!plan.installStatePath) {
-    return { removedFiles, candidateDirs };
-  }
-
-  let oldState;
-  try {
-    oldState = JSON.parse(fs.readFileSync(plan.installStatePath, 'utf8'));
-  } catch (_err) {
-    return { removedFiles, candidateDirs };
-  }
-
-  if (!oldState || !Array.isArray(oldState.operations)) {
-    return { removedFiles, candidateDirs };
-  }
-
-  const oldManagedOps = oldState.operations.filter(
-    op => op.kind === 'copy-file' && op.ownership === 'managed' && op.destinationPath
-  );
-
-  for (const op of oldManagedOps) {
-    const dest = op.destinationPath;
-
-    if (newDestPaths.has(dest)) {
-      continue;
-    }
-
-    if (!op.sourceRelativePath) {
-      continue;
-    }
-
-    if (!fs.existsSync(dest)) {
-      continue;
-    }
-
-    try {
-      fs.rmSync(dest, { force: true });
-      removedFiles.push(dest);
-      candidateDirs.add(path.dirname(dest));
-    } catch (_err) {
-      // Non-critical: skip files that cannot be removed
-    }
-  }
-
-  return { removedFiles, candidateDirs };
-}
-
-/**
- * Scan-based cleanup: find files on disk in managed namespace directories
- * that have no matching operation in the new plan and no corresponding
- * source file in the repo.
- */
-function cleanupOrphanedFiles(plan, newManagedOps, newDestPaths) {
-  const removedFiles = [];
-  const removedDirs = [];
-  const candidateDirs = new Set();
-
-  // Identify managed namespace directories — directories under the
-  // target root that are fully owned by ECC (e.g. commands/ecc/,
-  // skills/ecc/, rules/ecc/).
-  const managedNsDirs = new Set();
-  for (const op of newManagedOps) {
-    const dest = op.destinationPath;
-    // Walk up from the file to find the managed namespace root.
-    // A managed namespace dir is one whose name is 'ecc' and whose
-    // parent is a known top-level category (commands, skills, rules).
-    let current = path.dirname(dest);
-    while (current && current !== plan.targetRoot && current !== path.dirname(current)) {
-      const name = path.basename(current);
-      const parent = path.dirname(current);
-      const parentName = path.basename(parent);
-      const knownCategories = new Set(['commands', 'skills', 'rules']);
-      if (name === 'ecc' && knownCategories.has(parentName)) {
-        managedNsDirs.add(current);
-        break;
-      }
-      current = parent;
-    }
-  }
-
-  // Scan each managed namespace directory for orphaned files
-  for (const nsDir of managedNsDirs) {
-    if (!fs.existsSync(nsDir)) {
-      continue;
-    }
-    scanAndRemoveOrphans(nsDir, newDestPaths, removedFiles, removedDirs, candidateDirs);
-  }
-
-  return { removedFiles, removedDirs, candidateDirs };
-}
-
-function scanAndRemoveOrphans(dir, keepPaths, removedFiles, removedDirs, candidateDirs) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch (_err) {
-    return false;
-  }
-
-  let hasKeptContent = false;
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      const childHasContent = scanAndRemoveOrphans(fullPath, keepPaths, removedFiles, removedDirs, candidateDirs);
-      if (!childHasContent && !keepPaths.has(fullPath)) {
-        try {
-          fs.rmdirSync(fullPath);
-          removedDirs.push(fullPath);
-          candidateDirs.add(path.dirname(fullPath));
-        } catch (_err) {
-          hasKeptContent = true;
-        }
-      } else {
-        hasKeptContent = true;
-      }
-    } else if (entry.isFile()) {
-      if (!keepPaths.has(fullPath)) {
-        try {
-          fs.rmSync(fullPath, { force: true });
-          removedFiles.push(fullPath);
-          candidateDirs.add(path.dirname(fullPath));
-        } catch (_err) {
-          hasKeptContent = true;
-        }
-      } else {
-        hasKeptContent = true;
-      }
-    }
-  }
-
-  return hasKeptContent;
-}
-
-function applyInstallPlan(plan) {
-  const resolvedClaudeHooksPlan = buildResolvedClaudeHooks(plan);
+  const migration = prepareClaudeSkillMigration(plan);
+  const appliedPlan = {
+    ...plan,
+    operations: migration.appliedOperations,
+  };
+  const resolvedClaudeHooksPlan = buildResolvedClaudeHooks(appliedPlan);
   const disabledServers = parseDisabledMcpServers(process.env.ECC_DISABLED_MCPS);
+  const linkIndex = buildLinkIndexForPlan(appliedPlan);
+  const hasLegacyMigration = migration.legacyOperationsToRemove.length > 0;
 
-  const cleanupResult = cleanupStaleManagedFiles(plan);
-  if (cleanupResult.removedFiles.length > 0 || cleanupResult.removedDirs.length > 0) {
-    const removedPaths = [...cleanupResult.removedFiles, ...cleanupResult.removedDirs];
-    console.log(`[ECC] Cleaned up ${removedPaths.length} stale managed file(s):`);
-    for (const p of removedPaths) {
-      console.log(`[ECC]   Removed ${p}`);
+  if (migration.requiresBridgeState) {
+    // Own every operation that may be written during a flat-skill migration
+    // before the first copy. A later failure is retryable and uninstall can
+    // clean the entire partial install, including non-skill files. During
+    // legacy migration the bridge also retains the prior managed operations.
+    if (typeof beforeInstallStateWrite === 'function') {
+      beforeInstallStateWrite({ plan: appliedPlan, state: migration.bridgeState });
     }
+    persistInstallState(plan.installStatePath, migration.bridgeState);
   }
 
-  for (const operation of plan.operations) {
-    fs.mkdirSync(path.dirname(operation.destinationPath), { recursive: true });
-
-    if (operation.kind === 'merge-json') {
-      const payload = cloneJsonValue(operation.mergePayload);
-      if (payload === undefined) {
-        throw new Error(`Missing merge payload for ${operation.destinationPath}`);
+  let finalState;
+  try {
+    for (const operation of appliedPlan.operations) {
+      assertSafeInstallOperation(appliedPlan, operation);
+      assertSafeClaudeSkillOperation(appliedPlan, operation);
+      fs.mkdirSync(path.dirname(operation.destinationPath), { recursive: true });
+      // Recheck directories that were absent during the first validation. This
+      // narrows the symlink-swap window around mkdirSync, but path checks cannot
+      // eliminate a later TOCTOU race before the file write.
+      assertSafeInstallOperation(appliedPlan, operation);
+      assertSafeClaudeSkillOperation(appliedPlan, operation);
+      if (typeof beforeOperationWrite === 'function') {
+        beforeOperationWrite({ plan: appliedPlan, operation });
       }
 
-      const filteredPayload = (
-        isMcpConfigPath(operation.destinationPath) && disabledServers.length > 0
-      )
-        ? filterMcpConfig(payload, disabledServers).config
-        : payload;
+      if (operation.kind === 'merge-json') {
+        const payload = cloneJsonValue(operation.mergePayload);
+        if (payload === undefined) {
+          throw new Error(`Missing merge payload for ${operation.destinationPath}`);
+        }
 
-      const currentValue = fs.existsSync(operation.destinationPath)
-        ? readJsonObject(operation.destinationPath, 'existing JSON config')
-        : {};
-      const mergedValue = deepMergeJson(currentValue, filteredPayload);
-      fs.writeFileSync(operation.destinationPath, formatJson(mergedValue), 'utf8');
-      continue;
+        const filteredPayload = (
+          isMcpConfigPath(operation.destinationPath) && disabledServers.length > 0
+        )
+          ? filterMcpConfig(payload, disabledServers).config
+          : payload;
+
+        const currentValue = readOptionalJsonObject(
+          operation.destinationPath,
+          'existing JSON config'
+        );
+        const mergedValue = deepMergeJson(currentValue, filteredPayload);
+        fs.writeFileSync(operation.destinationPath, formatJson(mergedValue), 'utf8');
+        continue;
+      }
+
+      if (operation.kind === 'copy-file' && isMcpConfigPath(operation.destinationPath) && disabledServers.length > 0) {
+        const sourceConfig = readJsonObject(operation.sourcePath, 'MCP config');
+        const filteredConfig = filterMcpConfig(sourceConfig, disabledServers).config;
+        fs.writeFileSync(operation.destinationPath, formatJson(filteredConfig), 'utf8');
+        continue;
+      }
+
+      // Declared transforms are part of the install contract and always apply.
+      // Markdown link rewriting is additive when the plan has a usable index.
+      const needsLinkRewrite = Boolean(
+        linkIndex
+        && operation.sourceRelativePath
+        && isMarkdownPath(operation.destinationPath)
+      );
+      if (operation.kind === 'copy-file' && (operation.contentTransform || needsLinkRewrite)) {
+        const transformed = transformInstallContent(
+          operation,
+          fs.readFileSync(operation.sourcePath, 'utf8')
+        );
+        const installedContent = needsLinkRewrite
+          ? rewriteRelativeLinks(transformed, {
+            sourceRel: operation.sourceRelativePath,
+            index: linkIndex,
+          })
+          : transformed;
+        fs.writeFileSync(operation.destinationPath, installedContent, 'utf8');
+        continue;
+      }
+
+      fs.copyFileSync(operation.sourcePath, operation.destinationPath);
     }
 
-    if (operation.kind === 'copy-file' && isMcpConfigPath(operation.destinationPath) && disabledServers.length > 0) {
-      const sourceConfig = readJsonObject(operation.sourcePath, 'MCP config');
-      const filteredConfig = filterMcpConfig(sourceConfig, disabledServers).config;
-      fs.writeFileSync(operation.destinationPath, formatJson(filteredConfig), 'utf8');
-      continue;
+    if (resolvedClaudeHooksPlan) {
+      assertSafeInstallOperation(appliedPlan, resolvedClaudeHooksPlan.hooksOperation);
+      fs.mkdirSync(path.dirname(resolvedClaudeHooksPlan.hooksDestinationPath), { recursive: true });
+      assertSafeInstallOperation(appliedPlan, resolvedClaudeHooksPlan.hooksOperation);
+      if (typeof beforeOperationWrite === 'function') {
+        beforeOperationWrite({ plan: appliedPlan, operation: resolvedClaudeHooksPlan.hooksOperation });
+      }
+      fs.writeFileSync(
+        resolvedClaudeHooksPlan.hooksDestinationPath,
+        JSON.stringify(resolvedClaudeHooksPlan.resolvedHooksConfig, null, 2) + '\n',
+        'utf8'
+      );
     }
 
-    fs.copyFileSync(operation.sourcePath, operation.destinationPath);
+    if (hasLegacyMigration) {
+      removeLegacyClaudeSkillFiles(migration, plan.targetRoot);
+    }
+
+    if (shouldSetClaudeCommitAttributionPreference(appliedPlan)) {
+      writeClaudeCommitAttributionPreference(path.join(plan.targetRoot, 'settings.json'));
+    }
+
+    finalState = stateWithContentDigests(migration.finalState, appliedPlan);
+    if (typeof beforeInstallStateWrite === 'function') {
+      beforeInstallStateWrite({ plan: appliedPlan, state: finalState });
+    }
+    persistInstallState(plan.installStatePath, finalState);
+  } catch (error) {
+    if (migration.requiresBridgeState) {
+      try {
+        // The bridge was committed before any writes. Refresh it with hashes of
+        // files that now exist so uninstall can remove only bytes this attempt
+        // actually installed while preserving user changes.
+        persistInstallState(
+          plan.installStatePath,
+          stateWithContentDigests(migration.bridgeState, appliedPlan)
+        );
+      } catch (checkpointError) {
+        throw new Error(
+          `${error.message} Install-state checkpoint also failed: ${checkpointError.message}`,
+          { cause: error }
+        );
+      }
+    }
+    throw error;
+  }
+  let antigravityMigrationWarnings = [];
+  try {
+    const antigravityMigration = cleanupLegacyAntigravityInstall(appliedPlan);
+    if (antigravityMigration.detected && !antigravityMigration.complete) {
+      antigravityMigrationWarnings = [
+        'Legacy Antigravity migration is incomplete. ECC preserved modified, unverifiable, or unmanaged content under .agent; review and move anything you want to keep, then rerun the Antigravity install.',
+        ...(Array.isArray(antigravityMigration.warnings) ? antigravityMigration.warnings : []),
+      ];
+    }
+  } catch (error) {
+    antigravityMigrationWarnings = [
+      `Legacy Antigravity cleanup did not finish: ${error.message}. Content under .agent was preserved; remove it manually or rerun the Antigravity install.`,
+    ];
   }
 
-  if (resolvedClaudeHooksPlan) {
-    fs.mkdirSync(path.dirname(resolvedClaudeHooksPlan.hooksDestinationPath), { recursive: true });
-    fs.writeFileSync(
-      resolvedClaudeHooksPlan.hooksDestinationPath,
-      JSON.stringify(resolvedClaudeHooksPlan.resolvedHooksConfig, null, 2) + '\n',
-      'utf8'
-    );
+  let opencodeMigrationWarnings = [];
+  try {
+    const opencodeMigration = cleanupLegacyOpencodeInstall(appliedPlan);
+    if (opencodeMigration.detected && !opencodeMigration.complete) {
+      opencodeMigrationWarnings = [
+        'Legacy OpenCode migration is incomplete. ECC preserved modified or unverifiable managed content under ~/.opencode; review it and rerun the OpenCode install.',
+        ...(Array.isArray(opencodeMigration.warnings) ? opencodeMigration.warnings : []),
+      ];
+    }
+  } catch (error) {
+    opencodeMigrationWarnings = [
+      `Legacy OpenCode cleanup did not finish: ${error.message}. Content under ~/.opencode was preserved; rerun the OpenCode install or review it manually.`,
+    ];
   }
-
-  writeInstallState(plan.installStatePath, plan.statePreview);
 
   return {
     ...plan,
+    statePreview: finalState,
+    plannedOperations: [...plan.operations],
+    operations: migration.appliedOperations,
+    skippedOperations: migration.skippedOperations,
+    warnings: [
+      ...(Array.isArray(plan.warnings) ? plan.warnings : []),
+      ...migration.warnings,
+      ...antigravityMigrationWarnings,
+      ...opencodeMigrationWarnings,
+    ],
     applied: true,
   };
 }
 
 module.exports = {
   applyInstallPlan,
-  cleanupStaleManagedFiles,
+  assertSafeInstallOperation,
+  previewInstallPlan,
 };

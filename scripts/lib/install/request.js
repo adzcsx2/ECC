@@ -1,8 +1,9 @@
 'use strict';
 
 const { validateInstallModuleIds, LOCALE_ALIAS_TO_COMPONENT_ID, listSupportedLocales } = require('../install-manifests');
+const { resolveHookConsentFlags } = require('./hook-consent');
 
-const LEGACY_INSTALL_TARGETS = ['claude', 'cursor', 'antigravity'];
+const LEGACY_INSTALL_TARGETS = ['claude', 'claude-project', 'cursor', 'antigravity'];
 
 function dedupeStrings(values) {
   return [...new Set((Array.isArray(values) ? values : []).map(value => String(value).trim()).filter(Boolean))];
@@ -28,6 +29,8 @@ function parseInstallArgs(argv) {
     excludeComponentIds: [],
     languages: [],
     locale: null,
+    enableHooks: false,
+    noHooks: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -68,6 +71,10 @@ function parseInstallArgs(argv) {
       }
       parsed.locale = locale;
       index += 1;
+    } else if (arg === '--enable-hooks') {
+      parsed.enableHooks = true;
+    } else if (arg === '--no-hooks') {
+      parsed.noHooks = true;
     } else if (arg === '--dry-run') {
       parsed.dryRun = true;
     } else if (arg === '--json') {
@@ -119,6 +126,10 @@ function normalizeInstallRequest(options = {}) {
     ...(Array.isArray(options.legacyLanguages) ? options.legacyLanguages : []),
     ...(Array.isArray(options.languages) ? options.languages : []),
   ]).map(language => language.toLowerCase()));
+  const hookConsent = resolveHookConsentFlags(options);
+  if (hookConsent === 'declined' && moduleIds.includes('hooks-runtime')) {
+    throw new Error('--no-hooks cannot be combined with an explicit hooks-runtime module selection');
+  }
   const hasManifestBaseSelection = Boolean(profileId) || moduleIds.length > 0 || includeComponentIds.length > 0;
   const hasNonLocaleManifestSelection = Boolean(profileId)
     || moduleIds.length > 0
@@ -133,17 +144,7 @@ function normalizeInstallRequest(options = {}) {
   }
 
   if (!options.help && !hasManifestBaseSelection && legacyLanguages.length === 0) {
-    // Default to full profile overwrite install
-    return {
-      mode: 'manifest',
-      target,
-      profileId: 'full',
-      moduleIds: [],
-      includeComponentIds: [],
-      excludeComponentIds: [],
-      legacyLanguages: [],
-      configPath: options.configPath || null,
-    };
+    throw new Error('No install profile, module IDs, included components, or legacy languages were provided');
   }
 
   return {
@@ -156,6 +157,7 @@ function normalizeInstallRequest(options = {}) {
     includeComponentIds,
     excludeComponentIds,
     legacyLanguages,
+    hookConsent,
     configPath: config?.path || options.configPath || null,
   };
 }

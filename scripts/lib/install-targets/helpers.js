@@ -7,11 +7,16 @@ const PLATFORM_SOURCE_PATH_OWNERS = Object.freeze({
   '.codex': 'codex',
   '.cursor': 'cursor',
   '.gemini': 'gemini',
+  '.hermes': 'hermes',
+  '.kimi': 'kimi',
+  '.kimi-code': 'kimi',
   '.joycode': 'joycode',
   '.opencode': 'opencode',
+  '.openclaw': 'openclaw',
   '.codebuddy': 'codebuddy',
   '.qwen': 'qwen',
   '.zed': 'zed',
+  '.adal': 'adal',
 });
 
 function normalizeRelativePath(relativePath) {
@@ -260,6 +265,9 @@ function createInstallTargetAdapter(config) {
     },
     resolveRoot(input = {}) {
       const baseRoot = resolveBaseRoot(config.kind, input);
+      if (typeof config.resolveRoot === 'function') {
+        return config.resolveRoot(input, baseRoot);
+      }
       return path.join(baseRoot, ...config.rootSegments);
     },
     getInstallStatePath(input = {}) {

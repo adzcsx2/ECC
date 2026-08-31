@@ -3,9 +3,6 @@
 Everything Claude Code (ECC) baseline rules for GitHub Copilot Chat in VS Code.
 These instructions are always active. Use the prompts in `.github/prompts/` for deeper workflows.
 
-> **Primary config:** `AGENTS.md` is this project's primary agent instruction file.
-> This file provides Copilot-specific prompt library references and a condensed rule subset.
-
 ## Core Workflow
 
 1. **Research first** — search for existing implementations before writing anything new.
@@ -25,9 +22,7 @@ These instructions are always active. Use the prompts in `.github/prompts/` for 
 ## Coding Standards
 
 ### Immutability
-
 ALWAYS create new objects, NEVER mutate in place:
-
 ```
 // WRONG  — mutates existing state
 modify(original, field, value)
@@ -37,19 +32,16 @@ update(original, field, value)
 ```
 
 ### File Organization
-
 - Prefer many small focused files over large ones (200–400 lines typical, 800 max).
 - Organize by feature/domain, not by type.
 - Extract helpers when a file exceeds 200 lines.
 
 ### Error Handling
-
 - Handle errors explicitly at every level — never swallow silently.
 - Surface user-friendly messages in the UI; log detailed context server-side.
 - Fail fast with clear messages at system boundaries (user input, external APIs).
 
 ### Input Validation
-
 - Validate all user input before processing.
 - Use schema-based validation where available.
 - Never trust external data (API responses, file content, query params).
@@ -71,11 +63,11 @@ If a security issue is found: **stop, fix CRITICAL issues first, rotate any expo
 
 Minimum **80% coverage**. All three layers required:
 
-| Layer       | Scope                                       |
-| ----------- | ------------------------------------------- |
-| Unit        | Individual functions, utilities, components |
-| Integration | API endpoints, database operations          |
-| E2E         | Critical user flows                         |
+| Layer | Scope |
+|-------|-------|
+| Unit | Individual functions, utilities, components |
+| Integration | API endpoints, database operations |
+| E2E | Critical user flows |
 
 **TDD cycle:** Write test (RED) → implement minimally (GREEN) → refactor (IMPROVE) → verify coverage.
 
@@ -91,16 +83,15 @@ Use AAA structure (Arrange / Act / Assert) and descriptive test names that expla
 
 Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
 
-PR checklist before requesting review:
-
+PR checklist before requesting sponsored review:
 - CI passing, merge conflicts resolved, branch up to date with target
 - Full diff reviewed (`git diff [base-branch]...HEAD`)
 - Test plan included in PR description
+- Code review is handled by CodeRabbit and Greptile. Do not add or route PR code review through Copilot, Claude, Codex, or other reviewer bots.
 
 ## Code Quality Checklist
 
 Before marking work complete:
-
 - [ ] Readable, well-named identifiers
 - [ ] Functions under 50 lines
 - [ ] Files under 800 lines
@@ -109,27 +100,16 @@ Before marking work complete:
 - [ ] No hardcoded values (use constants or env config)
 - [ ] No in-place mutation
 
-## Sources of Truth & Docs
-
-- Build config (`package.json`) over docs; code over docs when they conflict
-- Plan before acting when touching 3+ files, crossing modules, adding deps, or changing APIs
-- Keep source files <=500 lines; one responsibility per file
-- Default docs under `/docs` with categories: plan, business (product), architecture (design), guide, modules, references, checklist, reports
-- Multi-doc work items aggregate under `docs/plan/<task-slug>/`; audit/performance/eval reports use `docs/reports/<report-topic>/`
-- Project skills: `.ai/skills/` is canonical source; do not hand-edit `.claude/skills/` or other exports. Mirror refresh is automatic via project hook.
-
 ## ECC Prompt Library
 
 Use these prompts in Copilot Chat for deeper workflows:
 
-| Prompt                 | When to use                     | Purpose                                                    |
-| ---------------------- | ------------------------------- | ---------------------------------------------------------- |
-| `/ecc-plan`            | Complex feature                 | Phased implementation plan                                 |
-| `/ecc-plan-doc`        | Multi-session, multi-phase work | Persist a task-scoped documentation set under `docs/plan/` |
-| `/ecc-tdd`             | New feature or bug fix          | Test-driven development cycle                              |
-| `/ecc-code-review`     | After writing code              | Quality and security review                                |
-| `/ecc-security-review` | Before a release                | Deep security analysis                                     |
-| `/ecc-build-fix`       | Build/CI failure                | Systematic error resolution                                |
-| `/ecc-refactor`        | Code maintenance                | Dead code cleanup and simplification                       |
+| Prompt | When to use | Purpose |
+|--------|-------------|---------|
+| `/plan` | Complex feature | Phased implementation plan |
+| `/tdd` | New feature or bug fix | Test-driven development cycle |
+| `/security-review` | Before a release | Deep security analysis |
+| `/build-fix` | Build/CI failure | Systematic error resolution |
+| `/refactor` | Code maintenance | Dead code cleanup and simplification |
 
-To use: open Copilot Chat, type `/` and select the prompt from the picker. The prompt files live in `.github/prompts/` (named `ecc-*.prompt.md`), so VS Code exposes them as `/ecc-<name>`.
+To use: open Copilot Chat, type `/` and select the prompt from the picker.

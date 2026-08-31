@@ -2,14 +2,17 @@
 
 This supplements the root `AGENTS.md` with Codex-specific guidance.
 
+For repo navigation, surface ownership, and PR diff packet guidance, read
+`docs/CODEX-NAVIGATION-GUIDE.md` after this supplement.
+
 ## Model Recommendations
 
 | Task Type | Recommended Model |
 |-----------|------------------|
-| Routine coding, tests, formatting | GPT 5.4 |
-| Complex features, architecture | GPT 5.4 |
-| Debugging, refactoring | GPT 5.4 |
-| Security review | GPT 5.4 |
+| Routine coding, tests, formatting | GPT 5.5 |
+| Complex features, architecture | GPT 5.5 |
+| Debugging, refactoring | GPT 5.5 |
+| Security review | GPT 5.5 |
 
 ## Skills Discovery
 
@@ -41,6 +44,8 @@ Available skills:
 - crosspost — Multi-platform content distribution
 - fal-ai-media — AI image/video/audio generation via fal.ai
 - dmux-workflows — Multi-agent orchestration with dmux
+- ecc-plan-doc — Persistent multi-document engineering planning
+- ecc-execute-doc — Phase-by-phase plan execution with audited retries
 
 ## MCP Servers
 
@@ -84,28 +89,17 @@ Sample role configs in this repo:
 
 | Feature | Claude Code | Codex CLI |
 |---------|------------|-----------|
-| Hooks | 8+ event types | Not yet supported |
+| Hooks | 8+ event types | Reviewed native subset with explicit trust in `/hooks` |
 | Context file | CLAUDE.md + AGENTS.md | AGENTS.md only |
-| Skills | Skills loaded via plugin | `.agents/skills/` directory |
-| Commands | `/ecc:<name>` slash commands | `/prompts:ecc-<name>` prompt aliases generated from `commands/*.md` |
+| Skills | Skills loaded via plugin | Native plugin skills and repo `.agents/skills/` |
+| Commands | `/slash` commands | Instruction-based |
 | Agents | Subagent Task tool | Multi-agent via `/agent` and `[agents.<name>]` roles |
-| Security | Hook-based enforcement | Instruction + sandbox |
+| Security | Hook profiles + sandbox | Trusted hook subset + instruction + sandbox |
 | MCP | Full support | Supported via `config.toml` and `codex mcp add` |
 
-## Command Prompt Aliases
+## Security with Narrower Hooks
 
-ECC installs Claude commands under `/ecc:<name>`. For Codex, the installer generates matching prompt files in `~/.codex/prompts/`:
-
-- `/ecc:plan` -> `/prompts:ecc-plan`
-- `/ecc:plan-doc` -> `/prompts:ecc-plan-doc`
-- `/ecc:code-review` -> `/prompts:ecc-code-review`
-- `/ecc:update-docs` -> `/prompts:ecc-update-docs`
-
-Use the Codex prompt alias when you want the same workflow in Codex. The installer refreshes generated prompt files during `install.sh`, `install.ps1`, or `--target codex` installs and preserves user-authored prompts.
-
-## Security Without Hooks
-
-Since Codex lacks hooks, security enforcement is instruction-based:
+Codex supports a narrower native hook subset than Claude Code, with explicit trust in `/hooks`. Treat those reviewed hooks as one layer alongside instructions and the sandbox:
 1. Always validate inputs at system boundaries
 2. Never hardcode secrets — use environment variables
 3. Run `npm audit` / `pip audit` before committing

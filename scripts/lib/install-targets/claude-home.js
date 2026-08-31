@@ -27,28 +27,14 @@ function getClaudeManagedDestinationPath(adapter, sourceRelativePath, input) {
   }
 
   if (normalizedSourcePath === 'skills') {
-    return path.join(targetRoot, 'skills', CLAUDE_ECC_NAMESPACE);
+    return path.join(targetRoot, 'skills');
   }
 
   if (normalizedSourcePath.startsWith('skills/')) {
     return path.join(
       targetRoot,
       'skills',
-      CLAUDE_ECC_NAMESPACE,
       normalizedSourcePath.slice('skills/'.length)
-    );
-  }
-
-  if (normalizedSourcePath === 'commands') {
-    return path.join(targetRoot, 'commands', CLAUDE_ECC_NAMESPACE);
-  }
-
-  if (normalizedSourcePath.startsWith('commands/')) {
-    return path.join(
-      targetRoot,
-      'commands',
-      CLAUDE_ECC_NAMESPACE,
-      normalizedSourcePath.slice('commands/'.length)
     );
   }
 

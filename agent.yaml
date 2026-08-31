@@ -1,6 +1,6 @@
 spec_version: "0.1.0"
 name: ecc
-version: 2.0.0-rc.1
+version: 2.2.0
 description: "Initial gitagent export surface for ECC's shared skill catalog, governance, and identity. Native agents, commands, and hooks remain authoritative in the repository while manifest coverage expands."
 author: affaan-m
 license: MIT
@@ -37,6 +37,7 @@ skills:
   - coding-standards
   - compose-multiplatform-patterns
   - configure-ecc
+  - contract-first
   - content-engine
   - content-hash-cache-pattern
   - context-budget
@@ -108,6 +109,7 @@ skills:
   - perl-security
   - perl-testing
   - plankton-code-quality
+  - plan-canvas
   - plan-orchestrate
   - postgres-patterns
   - product-lens
@@ -150,6 +152,7 @@ skills:
   - tdd-workflow
   - team-builder
   - token-budget-advisor
+  - unified-memory
   - verification-loop
   - video-editing
   - videodb
@@ -158,7 +161,6 @@ skills:
 commands:
   - aside
   - auto-update
-  - brainstorming
   - build-fix
   - checkpoint
   - code-review
@@ -167,6 +169,13 @@ commands:
   - cpp-review
   - cpp-test
   - ecc-guide
+  - epic-claim
+  - epic-decompose
+  - epic-publish
+  - epic-review
+  - epic-sync
+  - epic-unblock
+  - epic-validate
   - evolve
   - execute-doc
   - fastapi-review
@@ -203,12 +212,16 @@ commands:
   - multi-frontend
   - multi-plan
   - multi-workflow
+  - orch-add-feature
+  - orch-build-mvp
+  - orch-change-feature
+  - orch-fix-defect
+  - orch-refine-code
+  - orch-review
   - plan
+  - plan-canvas
   - plan-doc
   - plan-prd
-  - plan-r
-  - plan-t
-  - plan-tr
   - pm2
   - projects
   - promote
@@ -241,6 +254,7 @@ commands:
   - test-coverage
   - update-codemaps
   - update-docs
+  - vue-review
 tags:
   - agent-harness
   - developer-tools

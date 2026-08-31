@@ -81,6 +81,18 @@ function run() {
     assert.ok(skillDirs.includes('mle-workflow'), 'Expected .agents/skills/mle-workflow');
   })) passed++; else failed++;
 
+  if (test('migrated document workflows are present in both Codex skill surfaces', () => {
+    for (const skillName of ['ecc-plan-doc', 'ecc-execute-doc']) {
+      const canonicalPath = path.join(REPO_ROOT, 'skills', skillName, 'SKILL.md');
+      const mirrorPath = path.join(CODEX_SKILLS_DIR, skillName, 'SKILL.md');
+
+      assert.ok(fs.existsSync(canonicalPath), `Expected skills/${skillName}/SKILL.md`);
+      assert.ok(fs.existsSync(mirrorPath), `Expected .agents/skills/${skillName}/SKILL.md`);
+      assert.ok(fs.readFileSync(canonicalPath, 'utf8').includes(`name: ${skillName}`));
+      assert.ok(fs.readFileSync(mirrorPath, 'utf8').includes(`name: ${skillName}`));
+    }
+  })) passed++; else failed++;
+
   if (test('SKILL.md frontmatter matches Codex validator expectations', () => {
     for (const skillDir of skillDirs) {
       const frontmatter = parseFrontmatter(skillDir);

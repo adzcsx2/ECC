@@ -3,8 +3,6 @@
 #
 # This wrapper resolves the real repo/package root when invoked through a
 # symlinked npm bin, then delegates to the Node-based installer runtime.
-# Codex command syncing installs skill wrappers by default. Prompt aliases stay
-# disabled unless the caller explicitly sets ECC_SYNC_CODEX_PROMPTS=1.
 
 set -euo pipefail
 
@@ -30,7 +28,5 @@ if command -v cygpath &>/dev/null; then
 else
     NODE_SCRIPT="$SCRIPT_DIR/scripts/install-apply.js"
 fi
-
-export ECC_SYNC_CODEX_PROMPTS="${ECC_SYNC_CODEX_PROMPTS:-0}"
 
 exec node "$NODE_SCRIPT" "$@"

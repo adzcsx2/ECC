@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: Playwright E2E testing patterns, Page Object Model, configuration, CI/CD integration, artifact management, and flaky test strategies.
+description: Playwright E2E testing patterns, Page Object Model, configuration, CI/CD integration, artifact management, and flaky test strategies. Use when writing Playwright tests, structuring page objects, or fixing flaky E2E runs in CI.
 ---
 
 # E2E Testing Patterns
@@ -84,7 +84,7 @@ test.describe('Item Search', () => {
     expect(count).toBeGreaterThan(0)
 
     await expect(itemsPage.itemCards.first()).toContainText(/test/i)
-    await page.screenshot({ path: 'images/screen/search-results.png' })
+    await page.screenshot({ path: 'artifacts/search-results.png' })
   })
 
   test('should handle no results', async ({ page }) => {
@@ -191,25 +191,19 @@ await page.locator('[data-testid="menu-item"]').click()
 
 ## Artifact Management
 
-CRITICAL: All screenshots, videos, and traces MUST be saved under `images/screen/` in the project root. Before running any test that captures artifacts, ensure the directory exists:
-
-```bash
-mkdir -p images/screen images/screen/videos
-```
-
 ### Screenshots
 
 ```typescript
-await page.screenshot({ path: 'images/screen/after-login.png' })
-await page.screenshot({ path: 'images/screen/full-page.png', fullPage: true })
-await page.locator('[data-testid="chart"]').screenshot({ path: 'images/screen/chart.png' })
+await page.screenshot({ path: 'artifacts/after-login.png' })
+await page.screenshot({ path: 'artifacts/full-page.png', fullPage: true })
+await page.locator('[data-testid="chart"]').screenshot({ path: 'artifacts/chart.png' })
 ```
 
 ### Traces
 
 ```typescript
 await browser.startTracing(page, {
-  path: 'images/screen/trace.json',
+  path: 'artifacts/trace.json',
   screenshots: true,
   snapshots: true,
 })
@@ -223,7 +217,7 @@ await browser.stopTracing()
 // In playwright.config.ts
 use: {
   video: 'retain-on-failure',
-  videosPath: 'images/screen/videos/'
+  videosPath: 'artifacts/videos/'
 }
 ```
 
@@ -272,14 +266,14 @@ jobs:
 ### test-name
 **File:** `tests/e2e/feature.spec.ts:45`
 **Error:** Expected element to be visible
-**Screenshot:** images/screen/failed.png
+**Screenshot:** artifacts/failed.png
 **Recommended Fix:** [description]
 
 ## Artifacts
 - HTML Report: playwright-report/index.html
-- Screenshots: images/screen/*.png
-- Videos: images/screen/videos/*.webm
-- Traces: images/screen/*.zip
+- Screenshots: artifacts/*.png
+- Videos: artifacts/videos/*.webm
+- Traces: artifacts/*.zip
 ```
 
 ## Wallet / Web3 Testing

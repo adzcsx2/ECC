@@ -77,14 +77,14 @@ argument-hint: "<执行文档路径或目录>"
 set -e
 DOC_PATH="<解析后的 00-执行文档.md 完整路径>"
 MAIN_REPO=$(git rev-parse --show-toplevel)
-[ -f "$DOC_PATH" ] || { echo "⚠ [FATAL] 执行文档不存在: $DOC_PATH"; exit 1; }
+[ -f "$DOC_PATH" ] || { echo "警告 [FATAL] 执行文档不存在: $DOC_PATH"; exit 1; }
 grep -q "<!-- progress-pointer:start -->" "$DOC_PATH" \
-  || { echo "⚠ [FATAL] $DOC_PATH 不含 progress-pointer 锚点，非 plan-doc 生成文档"; exit 1; }
+  || { echo "警告 [FATAL] $DOC_PATH 不含 progress-pointer 锚点，非 plan-doc 生成文档"; exit 1; }
 grep -q "<!-- progress-pointer:end -->" "$DOC_PATH" \
-  || { echo "⚠ [FATAL] progress-pointer 锚点不闭合"; exit 1; }
+  || { echo "警告 [FATAL] progress-pointer 锚点不闭合"; exit 1; }
 echo "RECORDED_MAIN_REPO=$MAIN_REPO"
 echo "RECORDED_DOC_PATH=$DOC_PATH"
-echo "✅ 执行文档校验通过: $DOC_PATH"
+echo "通过 执行文档校验通过: $DOC_PATH"
 ```
 
 主对话从 stdout 提取并记录 `RECORDED_MAIN_REPO`、`RECORDED_DOC_PATH` 的字面值，后续所有 bash 块与子代理 prompt 用实际值替换 `<MAIN_REPO>`、`<DOC_PATH>`。
@@ -151,7 +151,7 @@ prompt: "执行 <DOC_PATH> 中的 Phase <phase>。
          先读 <DOC_PATH> 中 Phase <phase> 的完整 checklist（P<phase>.1, P<phase>.2, ...），
          以及同目录 02-开发规范.md（若存在）的禁止 / 必须规则。
 
-         ⚠ 一次性完成 Phase <phase> 的【全部】checklist 子项，不要做完一项就返回。
+         警告 一次性完成 Phase <phase> 的【全部】checklist 子项，不要做完一项就返回。
          在所有子项完成、相关测试全绿之前，禁止结束本次 agent 调用。
          更新执行文档 / 勾选子项只是过程记录，做完后立即继续下一项，绝不停下等待。
 
@@ -161,7 +161,7 @@ prompt: "执行 <DOC_PATH> 中的 Phase <phase>。
          完成后执行 git add -A && git commit（至少一次），commit message 必须使用中文。
          报告中必须包含：已完成的 P<phase>.<M> 清单、修改的文件列表、测试结果、覆盖率（如适用）。
 
-         ⚠ 不要更新 progress pointer、不要决定 phase 切换——这些由主代理独占。"
+         警告 不要更新 progress pointer、不要决定 phase 切换——这些由主代理独占。"
 ```
 
 > **模型不降级（强制）**：上述 Agent tool 调用**省略 `model` 参数**，让子代理继承主代理当前模型。**绝不**显式指定 haiku 或其他更便宜的模型。这与 plan-doc Stage 3.5 的「降级模型生成文档」哲学相反——execute-doc 要的是与主代理同等能力的执行。
@@ -234,15 +234,15 @@ git status --porcelain                       # 是否有未提交残留
 
 | Phase            | 状态  | 子代理调用                          | 审计结论       | Commit        |
 | ---------------- | ----- | ----------------------------------- | -------------- | ------------- |
-| Phase `<start>`  | ✅/❌ | `<coding agent>` 调用 + 是否返工    | 通过 / 返工N轮 | `<hash>`      |
-| Phase `<start+1>`| ✅/❌ | ...                                 | ...            | ...           |
+| Phase `<start>`  | 通过/失败 | `<coding agent>` 调用 + 是否返工    | 通过 / 返工N轮 | `<hash>`      |
+| Phase `<start+1>`| 通过/失败 | ...                                 | ...            | ...           |
 | ...              | ...   | ...                                 | ...            | ...           |
 
-任何 ❌ → 命令未完成，按封闭清单向用户报告遗留问题。
+任何 失败 → 命令未完成，按封闭清单向用户报告遗留问题。
 
 ---
 
-## 最终总结（仅在所有 phase ✅ 后输出）
+## 最终总结（仅在所有 phase 通过 后输出）
 
 - 执行文档：`<DOC_PATH>`
 - 完成的 phase 范围：Phase `<start>` → Phase `<N>`

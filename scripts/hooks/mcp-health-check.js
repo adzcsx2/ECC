@@ -28,8 +28,11 @@ const MAX_BACKOFF_MS = 10 * 60 * 1000;
 // Claude Code's stored OAuth bearer token. Treat auth-gated responses as
 // reachable so the real MCP client can attempt the authenticated call. A
 // Streamable HTTP MCP server can also return 406 to a bare GET that omits
-// Accept: text/event-stream; that still proves the endpoint is alive.
-const HEALTHY_HTTP_CODES = new Set([200, 201, 202, 204, 301, 302, 303, 304, 307, 308, 400, 401, 403, 405, 406]);
+// Accept: text/event-stream; that still proves the endpoint is alive. Some
+// POST-only Streamable HTTP servers (e.g. Paper Desktop) answer a bare GET
+// with 404 instead; a routed HTTP response of any kind proves reachability,
+// so treat 404 as alive and let the real MCP client validate the endpoint.
+const HEALTHY_HTTP_CODES = new Set([200, 201, 202, 204, 301, 302, 303, 304, 307, 308, 400, 401, 403, 404, 405, 406]);
 const RECONNECT_STATUS_CODES = new Set([401, 403, 429, 503]);
 const FAILURE_PATTERNS = [
   { code: 401, pattern: /\b401\b|unauthori[sz]ed|auth(?:entication)?\s+(?:failed|expired|invalid)/i },
@@ -338,6 +341,21 @@ function probeCommandServer(serverName, config) {
     // through shell mode.
     const UNSAFE_SHELL_CHARS = /[&|<>^%!()\s;]/;
 
+    // When spawning via cmd.exe (shell:true) on Windows, Node concatenates
+    // command + args WITHOUT quoting (DEP0190). An arg containing a space —
+    // such as a path under "C:\Program Files" — gets re-split by cmd.exe.
+    // Build a properly-quoted command line instead and pass it as a single
+    // string with no args array, so cmd.exe sees each token as one unit.
+    function quoteWin(token) {
+      // If the token has no characters that need quoting, return it as-is.
+      if (!/[\s"&|<>^%!();]/.test(token)) {
+        return token;
+      }
+      // Escape embedded double quotes by doubling them, then wrap in double
+      // quotes. cmd.exe uses "" as an escaped quote inside a quoted string.
+      return '"' + token.replace(/"/g, '""') + '"';
+    }
+
     function attempt(idx) {
       const tryCommand = candidates[idx];
       const isLast = idx + 1 >= candidates.length;
@@ -375,12 +393,26 @@ function probeCommandServer(serverName, config) {
 
       let child;
       try {
-        child = spawn(tryCommand, args, {
-          env: mergedEnv,
-          cwd: process.cwd(),
-          stdio: ['pipe', 'ignore', 'pipe'],
-          shell: useShell
-        });
+        if (useShell) {
+          // Build a single quoted command line for cmd.exe. Passing an args
+          // array with shell:true causes Node to concatenate without quoting
+          // (DEP0190), which splits space-containing args (e.g. paths under
+          // "C:\Program Files") at every space boundary.
+          const quotedCmdline = [tryCommand, ...args].map(quoteWin).join(' ');
+          child = spawn(quotedCmdline, {
+            env: mergedEnv,
+            cwd: process.cwd(),
+            stdio: ['pipe', 'ignore', 'pipe'],
+            shell: true
+          });
+        } else {
+          child = spawn(tryCommand, args, {
+            env: mergedEnv,
+            cwd: process.cwd(),
+            stdio: ['pipe', 'ignore', 'pipe'],
+            shell: false
+          });
+        }
       } catch (error) {
         if ((error.code === 'ENOENT' || error.code === 'EINVAL') && !isLast) {
           retryNext();

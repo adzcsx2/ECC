@@ -1,4 +1,4 @@
-**Язык:** [English](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | **Русский** | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md)
+**Язык:** [English](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | **Русский** | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md) | [Українська](../uk-UA/README.md)
 
 # Everything Claude Code
 
@@ -9,7 +9,7 @@
 [![Contributors](https://img.shields.io/github/contributors/affaan-m/everything-claude-code?style=flat)](https://github.com/affaan-m/everything-claude-code/graphs/contributors)
 [![npm ecc-universal](https://img.shields.io/npm/dw/ecc-universal?label=ecc-universal%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-universal)
 [![npm ecc-agentshield](https://img.shields.io/npm/dw/ecc-agentshield?label=ecc-agentshield%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-agentshield)
-[![GitHub App Install](https://img.shields.io/badge/GitHub%20App-150%20installs-2ea44f?logo=github)](https://github.com/marketplace/ecc-tools)
+[![GitHub App Install](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.ecc.tools%2Fbadge%2Finstalls&logo=github)](https://github.com/marketplace/ecc-tools)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 ![Shell](https://img.shields.io/badge/-Shell-4EAA25?logo=gnu-bash&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -27,7 +27,7 @@
 
 **Язык / 语言 / 語言 / Dil / Ngôn ngữ**
 
-[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | **Русский** | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md)
+[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [Türkçe](../tr/README.md) | **Русский** | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md) | [Українська](../uk-UA/README.md)
 
 </div>
 
@@ -174,7 +174,7 @@ ECC v2.0.0-rc.1 добавляет публичную историю опера�
 
 - **Рекомендуемый вариант по умолчанию:** установите плагин Claude Code, затем скопируйте только те папки правил, которые вам действительно нужны.
 - **Используйте ручной установщик только если** вам нужен более тонкий контроль, вы хотите полностью избежать пути через плагин или ваша сборка Claude Code не может разрешить self-hosted запись в marketplace.
-- **Не накладывайте методы установки друг на друга.** Самая частая сломанная конфигурация: сначала `/plugin install`, затем `install.sh --profile full` или `npx ecc-install --profile full`.
+- **Не накладывайте методы установки друг на друга.** Самая частая сломанная конфигурация: сначала `/plugin install`, затем `install.sh --profile full` или `npx ecc-universal install --profile full`.
 
 Если вы уже наложили несколько установок и видите дублирование, сразу переходите к разделу [Сброс / удаление ECC](#сброс--удаление-ecc).
 
@@ -189,7 +189,7 @@ ECC v2.0.0-rc.1 добавляет публичную историю опера�
 ```powershell
 .\install.ps1 --profile minimal --target claude
 # или
-npx ecc-install --profile minimal --target claude
+npx ecc-universal install --profile minimal --target claude
 ```
 
 Этот профиль намеренно исключает `hooks-runtime`.
@@ -211,7 +211,7 @@ npx ecc-install --profile minimal --target claude
 Если вы не уверены, какой профиль ECC или компонент установить, спросите упакованный advisor из любого проекта:
 
 ```bash
-npx ecc consult "security reviews" --target claude
+npx ecc-universal consult "security reviews" --target claude
 ```
 
 Он вернёт подходящие компоненты, связанные профили и команды предпросмотра/установки. Используйте команду предпросмотра перед установкой, если хотите посмотреть точный план файлов.
@@ -222,7 +222,7 @@ npx ecc consult "security reviews" --target claude
 
 ```bash
 # Добавьте marketplace
-/plugin marketplace add https://github.com/affaan-m/everything-claude-code
+/plugin marketplace add https://github.com/affaan-m/ECC
 
 # Установите плагин
 /plugin install ecc@ecc
@@ -242,7 +242,7 @@ npx ecc consult "security reviews" --target claude
 
 > ПРЕДУПРЕЖДЕНИЕ: **Важно:** плагины Claude Code не могут автоматически распространять `rules`.
 >
-> Если вы уже установили ECC через `/plugin install`, **не запускайте после этого `./install.sh --profile full`, `.\install.ps1 --profile full` или `npx ecc-install --profile full`**. Плагин уже загружает навыки, команды и хуки ECC. Запуск полного установщика после установки плагина скопирует те же компоненты в пользовательские директории и может создать дублирующиеся навыки и дублирующееся runtime-поведение.
+> Если вы уже установили ECC через `/plugin install`, **не запускайте после этого `./install.sh --profile full`, `.\install.ps1 --profile full` или `npx ecc-universal install --profile full`**. Плагин уже загружает навыки, команды и хуки ECC. Запуск полного установщика после установки плагина скопирует те же компоненты в пользовательские директории и может создать дублирующиеся навыки и дублирующееся runtime-поведение.
 >
 > Для установки через плагин вручную скопируйте только нужные директории `rules/` в `~/.claude/rules/ecc/`. Начните с `rules/common` плюс один языковой или framework-пакет, который вы действительно используете. Не копируйте все директории правил, если явно не хотите весь этот контекст в Claude.
 >
@@ -277,7 +277,7 @@ Copy-Item -Recurse rules/typescript "$HOME/.claude/rules/ecc/"
 
 # Полностью ручной путь установки ECC (используйте вместо /plugin install)
 # .\install.ps1 --profile full
-# npx ecc-install --profile full
+# npx ecc-universal install --profile full
 ```
 
 Инструкции по ручной установке смотрите в README в папке `rules/`. При ручном копировании правил копируйте всю языковую директорию целиком (например, `rules/common` или `rules/golang`), а не файлы внутри неё, чтобы относительные ссылки продолжали работать и имена файлов не конфликтовали.
@@ -293,7 +293,7 @@ Copy-Item -Recurse rules/typescript "$HOME/.claude/rules/ecc/"
 ```powershell
 .\install.ps1 --profile full
 # или
-npx ecc-install --profile full
+npx ecc-universal install --profile full
 ```
 
 Если выбираете этот путь, на нём и остановитесь. Не запускайте дополнительно `/plugin install`.
@@ -763,7 +763,7 @@ Duplicate hooks file detected: ./hooks/hooks.json resolves to already-loaded fil
 
 ```bash
 # Добавить этот репозиторий как marketplace
-/plugin marketplace add https://github.com/affaan-m/everything-claude-code
+/plugin marketplace add https://github.com/affaan-m/ECC
 
 # Установить плагин
 /plugin install ecc@ecc
@@ -832,13 +832,15 @@ cp -r everything-claude-code/rules/php ~/.claude/rules/ecc/
 
 # Сначала скопировать навыки (основной рабочий интерфейс)
 # Рекомендуется для новых пользователей: только core/general skills
-mkdir -p ~/.claude/skills/ecc
-cp -r everything-claude-code/.agents/skills/* ~/.claude/skills/ecc/
-cp -r everything-claude-code/skills/search-first ~/.claude/skills/ecc/
+mkdir -p ~/.claude/skills
+cp -r everything-claude-code/.agents/skills/* ~/.claude/skills/
+cp -r everything-claude-code/skills/search-first ~/.claude/skills/
+# Claude Code загружает навыки только из прямых подкаталогов ~/.claude/skills.
+# Не вкладывайте ручную установку в ~/.claude/skills/ecc/.
 
 # Опционально: добавляйте нишевые/framework-specific skills только при необходимости
 # for s in django-patterns django-tdd laravel-patterns springboot-patterns; do
-# cp -r everything-claude-code/skills/$s ~/.claude/skills/ecc/
+# cp -r everything-claude-code/skills/$s ~/.claude/skills/
 # done
 
 # Опционально: сохранить поддерживаемую slash-command совместимость во время миграции
@@ -1080,7 +1082,7 @@ cp -r everything-claude-code/rules/common ~/.claude/rules/ecc/
 - **Gemini CLI**: экспериментальная project-local поддержка через `.gemini/GEMINI.md` и общий plumbing установщика.
 - **OpenCode**: полная поддержка плагина в `.opencode/`. См. [Поддержка OpenCode](#поддержка-opencode).
 - **Codex**: первоклассная поддержка macOS app и CLI, с guards против adapter drift и SessionStart fallback. См. PR [#257](https://github.com/affaan-m/everything-claude-code/pull/257).
-- **Antigravity**: плотная настройка для workflows, skills и flattened rules в `.agent/`. См. [Antigravity Guide](../ANTIGRAVITY-GUIDE.md).
+- **Antigravity**: плотная настройка для workflows, skills, agents и flattened rules в `.agents/`. См. [Antigravity Guide](../ANTIGRAVITY-GUIDE.md).
 - **Ненативные среды**: ручной fallback path для Grok и похожих интерфейсов. См. [Manual Adaptation Guide](../MANUAL-ADAPTATION-GUIDE.md).
 - **Claude Code**: нативно — это основная цель.
 </details>

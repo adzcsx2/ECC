@@ -1,0 +1,7 @@
+interface:
+  display_name: "ECC Plan Doc"
+  short_description: "Persistent multi-document planning with quality gates"
+  brand_color: "#0EA5E9"
+  default_prompt: "Use $ecc-plan-doc to generate a traceable, resumable engineering plan."
+policy:
+  allow_implicit_invocation: true

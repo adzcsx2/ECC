@@ -52,6 +52,29 @@ function writeInstallComponentsManifest(testDir, components) {
   });
 }
 
+function writeInstallModulesManifest(testDir, modules) {
+  writeJson(path.join(testDir, 'manifests', 'install-modules.json'), {
+    version: 1,
+    modules,
+  });
+}
+
+function writeInstallProfilesManifest(testDir, profiles) {
+  writeJson(path.join(testDir, 'manifests', 'install-profiles.json'), {
+    version: 1,
+    profiles,
+  });
+}
+
+function writeSkillFixture(testDir, skillId, description) {
+  const skillDir = path.join(testDir, 'skills', skillId);
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(skillDir, 'SKILL.md'),
+    `---\nname: ${skillId}\ndescription: ${description}\n---\n# ${skillId}\n`
+  );
+}
+
 function stripShebang(source) {
   let s = source;
   if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
@@ -190,13 +213,19 @@ function runCatalogValidator(overrides = {}) {
 // Captures stderr on both success and failure (the shared
 // runSourceViaTempFile helper only surfaces stderr when the child
 // exits non-zero, which hides WARN lines in the default mode).
-function runSkillsValidator(testDir, argv = [], envOverrides = {}) {
+function runSkillsValidator(testDir, argv = [], envOverrides = {}, docsDir) {
   const validatorPath = path.join(validatorsDir, 'validate-skills.js');
   let source = fs.readFileSync(validatorPath, 'utf8');
   source = stripShebang(source);
   source = source.replace(
     /const SKILLS_DIR = .*?;/,
     `const SKILLS_DIR = ${JSON.stringify(testDir)};`,
+  );
+  // Default to a nonexistent docs root so tests exercising only
+  // SKILLS_DIR aren't polluted by this repo's real docs/*/skills/ tree.
+  source = source.replace(
+    /const DOCS_DIR = .*?;/,
+    `const DOCS_DIR = ${JSON.stringify(docsDir || '/nonexistent-docs-dir-for-tests')};`,
   );
   if (argv.length > 0) {
     const argvPreamble = argv
@@ -475,7 +504,7 @@ function runTests() {
     cleanupTestDir(testDir);
   })) passed++; else failed++;
 
-  if (test('fails when README parity table counts drift', () => {
+  if (test('does not require obsolete cross-harness parity counts in README', () => {
     const testDir = createTestDir();
     const {
       readmePath,
@@ -503,11 +532,7 @@ function runTests() {
       MARKETPLACE_JSON_PATH: marketplaceJsonPath,
     });
 
-    assert.strictEqual(result.code, 1, 'Should fail when README parity table drifts');
-    assert.ok(
-      (result.stdout + result.stderr).includes('README.md parity table'),
-      'Should mention the README parity table mismatch'
-    );
+    assert.strictEqual(result.code, 0, 'Catalog counts should be validated from inventory surfaces, not parity claims');
     cleanupTestDir(testDir);
   })) passed++; else failed++;
 
@@ -595,11 +620,11 @@ function runTests() {
     const marketplaceJson = fs.readFileSync(marketplaceJsonPath, 'utf8');
 
     assert.ok(readme.includes('Access to 1 agents, 1 skills, and 1 legacy command shims'), 'Should sync README quick-start summary');
-    assert.ok(readme.includes('actual OSS surface: 1 agents, 1 skills, and 1 legacy command shims'), 'Should sync README release-note summary');
+    assert.ok(readme.includes('actual OSS surface: 9 agents, 9 skills, and 9 legacy command shims'), 'Should preserve historical README release-note summary');
     assert.ok(readme.includes('|-- agents/           # 1 specialized subagents for delegation'), 'Should sync README project tree agents count');
     assert.ok(readme.includes('| Agents | PASS: 1 agents |'), 'Should sync README comparison table');
     assert.ok(readme.includes('| Skills | 16 | .agents/skills/ |'), 'Should not rewrite unrelated README tables');
-    assert.ok(readme.includes('| **Agents** | 1 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |'), 'Should sync README parity table');
+    assert.ok(readme.includes('| **Agents** | 7 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |'), 'Should leave obsolete parity prose untouched');
     assert.ok(agentsDoc.includes('providing 1 specialized agents, 1 skills, 1 commands'), 'Should sync AGENTS summary');
     assert.ok(agentsDoc.includes('skills/          — 1 workflow skills and domain knowledge'), 'Should sync AGENTS structure');
     assert.ok(zhRootReadme.includes('你现在可以使用 1 个代理、1 个技能和 1 个命令'), 'Should sync README.zh-CN quick-start summary');
@@ -2577,7 +2602,21 @@ function runTests() {
     fs.mkdirSync(validSkill, { recursive: true });
     // Broken symlink: target does not exist — statSync will throw ENOENT
     const brokenLink = path.join(skillsDir, 'broken-skill');
-    fs.symlinkSync('/nonexistent/target/path', brokenLink);
+    try {
+      fs.symlinkSync('/nonexistent/target/path', brokenLink);
+    } catch (err) {
+      // Skip only where symlink creation is blocked (e.g. Windows without
+      // Developer Mode / admin rights → EPERM/EACCES); rethrow anything else
+      // so real failures aren't masked.
+      if (err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+        console.log('    (skipped — symlinks not supported)');
+        cleanupTestDir(testDir);
+        cleanupTestDir(agentsDir);
+        fs.rmSync(skillsDir, { recursive: true, force: true });
+        return;
+      }
+      throw err;
+    }
 
     // Command that references the valid skill (should resolve)
     fs.writeFileSync(path.join(testDir, 'cmd.md'),
@@ -2768,6 +2807,148 @@ function runTests() {
     cleanupTestDir(testDir);
   })) passed++; else failed++;
 
+  // ── Round 84: validate-skills docs/{locale}/skills/ mirror scan (#2630) ──
+
+  console.log('\nRound 84: validate-skills.js (docs/{locale}/skills/ frontmatter, #2630):');
+
+  if (test('flags a glued key onto description as invalid YAML', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'ja-JP', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: some text.license: Apache-2.0\nversion: 1.0.0\n---\n# Example');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 1, 'Should fail on glued key');
+    assert.ok(result.stderr.includes("unquoted value contains ': '"),
+      `Should report the glued-key defect, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('flags a dropped-quote description containing a colon as invalid YAML', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'ja-JP', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: Verification loop: migrations, linting\n---\n# Example');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 1, 'Should fail on unquoted colon in description');
+    assert.ok(result.stderr.includes("unquoted value contains ': '"),
+      `Should report the dropped-quote defect, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('flags a description starting with the reserved @ indicator', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'ja-JP', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: @Observable state management\n---\n# Example');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 1, 'Should fail on leading @');
+    assert.ok(result.stderr.includes("reserved character '@'"),
+      `Should report the reserved-indicator defect, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('preserves # inside a quoted frontmatter value', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'ja-JP', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: "Fix: details #tag" # translation note\n---\n# Example');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 0,
+      `Quoted # content must remain valid, got stderr: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('rejects malformed quoted skill frontmatter', () => {
+    const testDir = createTestDir();
+    const skillDir = path.join(testDir, 'malformed-quote');
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: malformed-quote\ndescription: "unterminated\n---\n# Example');
+
+    const result = runSkillsValidator(testDir, ['--strict']);
+    assert.strictEqual(result.code, 1, 'Strict validation must reject malformed YAML');
+    assert.ok(result.stderr.includes('invalid YAML'),
+      `Should report the YAML parse failure, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('rejects an empty folded skill description', () => {
+    const testDir = createTestDir();
+    const skillDir = path.join(testDir, 'empty-folded-description');
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: empty-folded-description\ndescription: >\n---\n# Example');
+
+    const result = runSkillsValidator(testDir, ['--strict']);
+    assert.strictEqual(result.code, 1, 'Strict validation must reject an empty folded scalar');
+    assert.ok(result.stderr.includes("'description' is empty"),
+      `Should report the empty parsed description, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('reports an unreadable docs root deterministically', () => {
+    const testDir = createTestDir();
+    const docsPath = path.join(testDir, 'docs-file');
+    fs.writeFileSync(docsPath, 'not a directory');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsPath);
+    assert.strictEqual(result.code, 1, 'Should fail when the docs root cannot be read');
+    assert.strictEqual(result.stderr.trim(), 'ERROR: unable to read docs directory');
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('flags a docs mirror SKILL.md with no frontmatter block at all', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'ja-JP', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Example\n\nNo frontmatter here.');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 1, 'Should fail when docs mirror has no frontmatter');
+    assert.ok(result.stderr.includes('no frontmatter block found'),
+      `Should report the missing-frontmatter defect, got: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('curated skills/ still tolerates a SKILL.md with no frontmatter (unchanged)', () => {
+    const testDir = createTestDir();
+    const skillDir = path.join(testDir, 'no-frontmatter-skill');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Example\n\nNo frontmatter here.');
+
+    const result = runSkillsValidator(testDir, ['--strict']);
+    assert.strictEqual(result.code, 0,
+      `Curated skills/ must not require frontmatter, got stderr: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('passes on a valid docs/{locale}/skills/ mirror', () => {
+    const testDir = createTestDir();
+    const docsDir = path.join(testDir, 'docs-root');
+    const skillDir = path.join(docsDir, 'zh-CN', 'skills', 'example');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: "Well-formed: quoted value"\n---\n# Example');
+
+    const result = runSkillsValidator('/nonexistent/skills-dir', ['--strict'], {}, docsDir);
+    assert.strictEqual(result.code, 0, `Should pass on well-formed mirror, got: ${result.stderr}`);
+    assert.ok(result.stdout.includes('Validated 1'), 'Should count the one docs skill file');
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
   // ==========================================
   // validate-install-manifests.js
   // ==========================================
@@ -2777,6 +2958,99 @@ function runTests() {
     const result = runValidator('validate-install-manifests');
     assert.strictEqual(result.code, 0, `Should pass, got stderr: ${result.stderr}`);
     assert.ok(result.stdout.includes('Validated'), 'Should output validation count');
+  })) passed++; else failed++;
+
+  if (test('fails when a curated skill is not referenced by any install module', () => {
+    const testDir = createTestDir();
+    try {
+      writeInstallModulesManifest(testDir, [
+        {
+          id: 'skill-alpha',
+          kind: 'skills',
+          description: 'Alpha skill',
+          paths: ['skills/alpha'],
+          targets: ['claude'],
+          dependencies: [],
+          defaultInstall: false,
+          cost: 'light',
+          stability: 'stable',
+        },
+        {
+          id: 'skill-beta',
+          kind: 'skills',
+          description: 'Beta skill',
+          paths: ['skills/beta'],
+          targets: ['claude'],
+          dependencies: [],
+          defaultInstall: false,
+          cost: 'light',
+          stability: 'stable',
+        },
+      ]);
+      writeInstallProfilesManifest(testDir, {
+        core: { description: 'Core', modules: ['skill-alpha', 'skill-beta'] },
+        developer: { description: 'Developer', modules: ['skill-alpha', 'skill-beta'] },
+        security: { description: 'Security', modules: ['skill-alpha', 'skill-beta'] },
+        research: { description: 'Research', modules: ['skill-alpha', 'skill-beta'] },
+        full: { description: 'Full', modules: ['skill-alpha', 'skill-beta'] },
+      });
+      writeSkillFixture(testDir, 'alpha', 'Alpha skill');
+      writeSkillFixture(testDir, 'beta', 'Beta skill');
+
+      let result = runValidatorWithDirs('validate-install-manifests', {
+        REPO_ROOT: testDir,
+        MODULES_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-modules.json'),
+        PROFILES_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-profiles.json'),
+        COMPONENTS_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-components.json'),
+        MODULES_SCHEMA_PATH: modulesSchemaPath,
+        PROFILES_SCHEMA_PATH: profilesSchemaPath,
+        COMPONENTS_SCHEMA_PATH: componentsSchemaPath,
+      });
+      assert.strictEqual(result.code, 0, `Should pass with both skills referenced, got stderr: ${result.stderr}`);
+
+      writeInstallModulesManifest(testDir, [
+        {
+          id: 'skill-alpha',
+          kind: 'skills',
+          description: 'Alpha skill',
+          paths: ['skills/alpha'],
+          targets: ['claude'],
+          dependencies: [],
+          defaultInstall: false,
+          cost: 'light',
+          stability: 'stable',
+        },
+        {
+          id: 'skill-beta',
+          kind: 'skills',
+          description: 'Beta skill',
+          paths: ['skills/beta-restored'],
+          targets: ['claude'],
+          dependencies: [],
+          defaultInstall: false,
+          cost: 'light',
+          stability: 'stable',
+        },
+      ]);
+      writeSkillFixture(testDir, 'beta-restored', 'Beta skill restored');
+
+      result = runValidatorWithDirs('validate-install-manifests', {
+        REPO_ROOT: testDir,
+        MODULES_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-modules.json'),
+        PROFILES_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-profiles.json'),
+        COMPONENTS_MANIFEST_PATH: path.join(testDir, 'manifests', 'install-components.json'),
+        MODULES_SCHEMA_PATH: modulesSchemaPath,
+        PROFILES_SCHEMA_PATH: profilesSchemaPath,
+        COMPONENTS_SCHEMA_PATH: componentsSchemaPath,
+      });
+      assert.strictEqual(result.code, 1, 'Should fail when beta is no longer referenced');
+      assert.ok(
+        result.stderr.includes('curated skill skills/beta is not referenced by any install module'),
+        `Should report unreferenced skill, got: ${result.stderr}`
+      );
+    } finally {
+      cleanupTestDir(testDir);
+    }
   })) passed++; else failed++;
 
   if (test('exits 0 when install manifests do not exist', () => {

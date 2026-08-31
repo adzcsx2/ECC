@@ -6,9 +6,7 @@
  * target-specific mutation logic into testable Node code.
  */
 
-const fs = require('fs');
 const os = require('os');
-const path = require('path');
 const {
   SUPPORTED_INSTALL_TARGETS,
   listLegacyCompatibilityLanguages,
@@ -19,72 +17,8 @@ const {
   normalizeInstallRequest,
   parseInstallArgs,
 } = require('./lib/install/request');
-const { syncEccCommandsToCodex } = require('./codex/sync-ecc-commands-to-codex');
-
-const INSTALLER_SOURCE_ROOT = path.join(__dirname, '..');
-
-/**
- * Clean up legacy 'everything-claude-code' plugin cache and old install-state
- * so that old and new ECC installations never coexist.
- *
- * Called unconditionally before each install (except --dry-run).
- */
-function cleanLegacyEcc(options = {}) {
-  const homeDir = process.env.HOME || os.homedir();
-  const pluginsDir = path.join(homeDir, '.claude', 'plugins');
-  const dryRun = Boolean(options.dryRun);
-  const quiet = Boolean(options.quiet);
-
-  const legacyTargets = [
-    path.join(pluginsDir, 'cache', 'everything-claude-code'),
-    path.join(pluginsDir, 'marketplaces', 'everything-claude-code'),
-  ];
-
-  for (const targetPath of legacyTargets) {
-    if (fs.existsSync(targetPath)) {
-      if (dryRun) {
-        if (!quiet) {
-          console.log(`[ECC dry-run] Would remove legacy path: ${targetPath}`);
-        }
-      } else {
-        console.log(`[ECC] Removing legacy ECC path: ${targetPath}`);
-        fs.rmSync(targetPath, { recursive: true, force: true });
-      }
-    }
-  }
-
-  const pluginsConfigPath = path.join(pluginsDir, 'config.json');
-  if (fs.existsSync(pluginsConfigPath)) {
-    try {
-      const cfg = JSON.parse(fs.readFileSync(pluginsConfigPath, 'utf8'));
-      if (cfg && cfg.plugins && cfg.plugins['everything-claude-code']) {
-        if (dryRun) {
-          if (!quiet) {
-            console.log(`[ECC dry-run] Would remove 'everything-claude-code' from ${pluginsConfigPath}`);
-          }
-        } else {
-          console.log(`[ECC] Removing 'everything-claude-code' entry from plugins config`);
-          delete cfg.plugins['everything-claude-code'];
-          fs.writeFileSync(pluginsConfigPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-        }
-      }
-    } catch (_err) {
-      // Non-critical: skip if config is unreadable
-    }
-  }
-
-  const installStatePath = path.join(homeDir, '.claude', 'ecc', 'install-state.json');
-  if (fs.existsSync(installStatePath)) {
-    if (dryRun) {
-      if (!quiet) {
-        console.log(`[ECC dry-run] Would remove old install-state: ${installStatePath}`);
-      }
-    } else {
-      console.log(`[ECC] Removing old install-state: ${installStatePath}`);
-      fs.rmSync(installStatePath, { force: true });
-    }
-  }
-}
+const { getComputeSponsorCopy } = require('./lib/compute-sponsor');
+const { stripAnsi } = require('./lib/utils');
 
 function getHelpText() {
   const languages = listLegacyCompatibilityLanguages();
@@ -99,17 +33,21 @@ Usage: install.sh [--target <${LEGACY_INSTALL_TARGETS.join('|')}>] [--dry-run] [
        install.sh [--dry-run] [--json] --config <path>
 
 Targets:
-  claude       (default) - Install ECC into ~/.claude/ with managed rules/skills under rules/ecc and skills/ecc
-  claude-project - Install ECC into ./.claude/ (per-project) with managed rules/skills under rules/ecc and skills/ecc
+  claude       (default) - Install ECC into ~/.claude/ with managed rules under rules/ecc and flat skills under skills/
+  claude-project - Install ECC into ./.claude/ (per-project) with managed rules under rules/ecc and flat skills under skills/
   cursor       - Install rules, hooks, and bundled Cursor configs to ./.cursor/
-  antigravity  - Install rules, workflows, skills, and agents to ./.agent/
+  antigravity  - Install rules, workflows, skills, and agents to ./.agents/
   codex        - Install shared agents/config into ~/.codex/
   gemini       - Install project-local Gemini config into ./.gemini/
-  opencode     - Install shared commands/hooks/config into ~/.opencode/
+  opencode     - Install into OPENCODE_CONFIG_DIR, XDG_CONFIG_HOME/opencode, or ~/.config/opencode/
   codebuddy    - Install commands, agents, skills, and flattened rules into ./.codebuddy/
   joycode      - Install commands, agents, skills, and flattened rules into ./.joycode/
   qwen         - Install commands, agents, skills, rules, and Qwen config into ~/.qwen/
   zed          - Install project settings, commands, agents, skills, and flattened rules into ./.zed/
+  hermes       - Install shared rules/skills/commands into ~/.hermes/
+  kimi         - Install Kimi Code project instructions, skills, and MCP config into ./.kimi-code/ (ECC hooks not configured)
+  openclaw     - Install shared rules/skills/commands into ~/.openclaw/
+  adal         - Install shared rules/skills/commands into ./.adal/
 
 Options:
   --profile <name>    Resolve and install a manifest profile
@@ -121,9 +59,15 @@ Options:
   --locale <code>     Install translated docs to ~/.claude/docs/<locale>/ (or ./.claude/docs/<locale>/ for claude-project)
                       (claude or claude-project target only; can be combined with --profile or --with)
   --config <path>     Load install intent from ecc-install.json
+  --enable-hooks      Confirm installing the automatic hook runtime (required
+                      when the selected profile/modules materialize hooks)
+  --no-hooks          Install everything except the automatic hook runtime
   --dry-run    Show the install plan without copying files
   --json       Emit machine-readable plan/result JSON
   --help       Show this help text
+
+Compute:
+  ${getComputeSponsorCopy()}
 
 Available languages:
 ${languages.map(language => `  - ${language}`).join('\n')}
@@ -163,7 +107,10 @@ function printHumanPlan(plan, dryRun) {
       console.log(`Excluded modules: ${plan.excludedModuleIds.join(', ')}`);
     }
   }
-  console.log(`Operations: ${plan.operations.length}`);
+  console.log(`${dryRun ? 'Operations' : 'Applied operations'}: ${plan.operations.length}`);
+  if (Array.isArray(plan.skippedOperations) && plan.skippedOperations.length > 0) {
+    console.log(`Skipped operations: ${plan.skippedOperations.length}`);
+  }
 
   if (plan.warnings.length > 0) {
     console.log('\nWarnings:');
@@ -172,50 +119,26 @@ function printHumanPlan(plan, dryRun) {
     }
   }
 
-  console.log('\nPlanned file operations:');
+  console.log(`\n${dryRun ? 'Planned' : 'Applied'} file operations:`);
   for (const operation of plan.operations) {
     console.log(`- ${operation.sourceRelativePath} -> ${operation.destinationPath}`);
   }
 
-  if (!dryRun) {
-    console.log(`\nDone. Install-state written to ${plan.installStatePath}`);
-    if (plan.codexCommandSync) {
-      const sync = plan.codexCommandSync;
-      console.log(`Codex command prompts synced: ${sync.writtenCount} -> ${sync.promptsDir}`);
-      if (sync.writtenSkillCount > 0) {
-        console.log(`Codex command skills synced: ${sync.writtenSkillCount} -> ${sync.skillsRoot}`);
-      }
-      if (sync.removedCount > 0) {
-        console.log(`Codex stale command prompts removed: ${sync.removedCount}`);
-      }
-      if (sync.removedSkillCount > 0) {
-        console.log(`Codex stale command skills removed: ${sync.removedSkillCount}`);
-      }
+  if (Array.isArray(plan.skippedOperations) && plan.skippedOperations.length > 0) {
+    console.log('\nSkipped file operations:');
+    for (const operation of plan.skippedOperations) {
+      console.log(`- ${operation.sourceRelativePath} -> ${operation.destinationPath}`);
     }
   }
-}
 
-function isCodexDetected(homeDir) {
-  if (process.env.CODEX_HOME) {
-    return true;
+  if (!dryRun) {
+    console.log(`\nDone. Install-state written to ${plan.installStatePath}`);
   }
 
-  return fs.existsSync(path.join(homeDir || os.homedir(), '.codex'));
+  console.log('\nCompute: ' + getComputeSponsorCopy());
 }
 
-function shouldSyncCodexCommands({ plan, homeDir }) {
-  if (process.env.ECC_SYNC_CODEX_COMMANDS === '0') {
-    return false;
-  }
-
-  if (plan.target === 'codex') {
-    return true;
-  }
-
-  return isCodexDetected(homeDir);
-}
-
-function main() {
+async function main() {
   try {
     const options = parseInstallArgs(process.argv);
 
@@ -227,9 +150,11 @@ function main() {
       findDefaultInstallConfigPath,
       loadInstallConfig,
     } = require('./lib/install/config');
-    const { applyInstallPlan } = require('./lib/install-executor');
+    const {
+      applyInstallPlan,
+      previewInstallPlan,
+    } = require('./lib/install-executor');
     const { createInstallPlanFromRequest } = require('./lib/install/runtime');
-    const homeDir = process.env.HOME || os.homedir();
     const defaultConfigPath = options.configPath || options.languages.length > 0
       ? null
       : findDefaultInstallConfigPath({ cwd: process.cwd() });
@@ -240,15 +165,15 @@ function main() {
       ...options,
       config,
     });
-    const plan = createInstallPlanFromRequest(request, {
+    const rawPlan = createInstallPlanFromRequest(request, {
       projectRoot: process.cwd(),
-      homeDir,
+      homeDir: process.env.HOME || os.homedir(),
+      env: process.env,
       claudeRulesDir: process.env.CLAUDE_RULES_DIR || null,
-      sourceRoot: INSTALLER_SOURCE_ROOT,
     });
 
     if (options.dryRun) {
-      cleanLegacyEcc({ dryRun: true, quiet: options.json });
+      const plan = previewInstallPlan(rawPlan);
       if (options.json) {
         console.log(JSON.stringify({ dryRun: true, plan }, null, 2));
       } else {
@@ -257,14 +182,18 @@ function main() {
       return;
     }
 
-    cleanLegacyEcc({ dryRun: false });
-    const result = applyInstallPlan(plan);
-    if (shouldSyncCodexCommands({ plan: result, options, config, homeDir })) {
-      result.codexCommandSync = syncEccCommandsToCodex({
-        repoRoot: INSTALLER_SOURCE_ROOT,
-        codexHome: process.env.CODEX_HOME || path.join(homeDir, '.codex'),
-      });
-    }
+    let result = applyInstallPlan(rawPlan);
+    const { projectCanonicalInstallState } = require('./lib/install-state-store-sync');
+    const installStateProjection = await projectCanonicalInstallState(result.statePreview, {
+      homeDir: process.env.HOME || os.homedir(),
+    });
+    result = {
+      ...result,
+      installStateProjection,
+      warnings: installStateProjection.warning
+        ? [...result.warnings, `Install health projection warning: ${installStateProjection.warning.message}`]
+        : result.warnings,
+    };
     if (options.json) {
       console.log(JSON.stringify({ dryRun: false, result }, null, 2));
     } else {
@@ -276,4 +205,26 @@ function main() {
   }
 }
 
-main();
+function sanitizeTerminalText(value) {
+  return stripAnsi(String(value || '')).replace(/[^\x20-\x7E]/g, '?');
+}
+
+function runGuidedMain(guidedArgs) {
+  Promise.resolve()
+    .then(() => require('./install-guided').main(guidedArgs))
+    .then(exitCode => {
+      process.exitCode = exitCode;
+    })
+    .catch(error => {
+      process.stderr.write(`Error: ${sanitizeTerminalText(error?.message)}\n`);
+      process.exitCode = 1;
+    });
+}
+
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--guided')) {
+  const guidedArgs = cliArgs.filter(argument => argument !== '--guided');
+  runGuidedMain(guidedArgs);
+} else {
+  main();
+}
