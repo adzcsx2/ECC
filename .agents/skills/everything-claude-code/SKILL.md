@@ -101,13 +101,6 @@ This project uses **hybrid** module organization.
 
 ### Configuration Files
 
-- `.github/workflows/ci.yml`
-- `.github/workflows/maintenance.yml`
-- `.github/workflows/monthly-metrics.yml`
-- `.github/workflows/release.yml`
-- `.github/workflows/reusable-release.yml`
-- `.github/workflows/reusable-test.yml`
-- `.github/workflows/reusable-validate.yml`
 - `.opencode/package.json`
 - `.opencode/tsconfig.json`
 - `.prettierrc`

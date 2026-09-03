@@ -469,12 +469,12 @@ function eccToolsNextLevelGap(roadmap) {
 function supplyChainLocalProtectionEvidence({ roadmap, scripts }) {
   if (scripts['security:advisory-sources'] === 'node scripts/ci/supply-chain-advisory-sources.js'
     && roadmap.includes('package-manager hardening Action outputs')) {
-    return 'scheduled supply-chain watch emits IOC/advisory-source refresh artifacts; ECC scanner covers gh-token-monitor token-store persistence; AgentShield now detects known AI-tool persistence IOCs, npm lifecycle/token drift, unsupported npm age-key drift, and pnpm/Yarn cooldown drift; current-head watch evidence and ITO-57 May 18 Linear evidence updates are current';
+    return 'local supply-chain scanning emits IOC/advisory-source refresh artifacts; ECC scanner covers gh-token-monitor token-store persistence; AgentShield now detects known AI-tool persistence IOCs, npm lifecycle/token drift, unsupported npm age-key drift, and pnpm/Yarn cooldown drift; current-head watch evidence and ITO-57 May 18 Linear evidence updates are current';
   }
 
   return scripts['security:advisory-sources'] === 'node scripts/ci/supply-chain-advisory-sources.js'
-    ? 'scheduled supply-chain watch now emits IOC and advisory-source refresh artifacts'
-    : 'scheduled supply-chain watch or advisory-source command is missing';
+    ? 'local supply-chain scanning and advisory-source refresh are available'
+    : 'local supply-chain scanner or advisory-source command is missing';
 }
 
 function supplyChainLocalProtectionGap({ roadmap, scripts }) {
@@ -644,7 +644,6 @@ function buildRequirements(rootDir, platformReport) {
   const stalePrSalvage = readText(rootDir, 'docs/stale-pr-salvage-ledger.md');
   const legacyInventory = readText(rootDir, 'docs/legacy-artifact-inventory.md');
   const supplyChainRunbook = readText(rootDir, 'docs/security/supply-chain-incident-response.md');
-  const supplyChainWorkflow = readText(rootDir, '.github/workflows/supply-chain-watch.yml');
   const packageJson = readPackage(rootDir);
   const scripts = packageJson.scripts || {};
   const legacyContext = { stalePrSalvage, legacyInventory, roadmap };
@@ -958,11 +957,10 @@ function buildRequirements(rootDir, platformReport) {
     buildRequirement(
       'supply-chain-local-protection',
       'Keep Mini Shai-Hulud/TanStack protection loop current',
-      'supply-chain watch plus runbook plus AgentShield package-manager hardening',
+      'local supply-chain scanner plus runbook plus AgentShield package-manager hardening',
+      // 供应链防护保留为本地校验，不依赖已移除的远程 CI 定时任务。
       includesAll(supplyChainRunbook, ['TanStack', 'Mini Shai-Hulud', 'scan-supply-chain-iocs.js', 'supply-chain-advisory-sources.js'])
-        && includesAll(supplyChainWorkflow, ['supply-chain-advisory-sources.js', 'supply-chain-advisory-sources.json'])
         && scripts['security:advisory-sources'] === 'node scripts/ci/supply-chain-advisory-sources.js'
-        && fileExists(rootDir, '.github/workflows/supply-chain-watch.yml')
         ? 'current'
         : 'in_progress',
       supplyChainLocalProtectionEvidence({ roadmap, scripts }),

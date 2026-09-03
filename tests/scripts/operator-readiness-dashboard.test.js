@@ -242,7 +242,6 @@ function seedRepo(rootDir, overrides = {}) {
       'GitHub Discussion Announcement',
       'Do Not Send Or Publish If'
     ].join('\n'),
-    '.github/workflows/supply-chain-watch.yml': 'name: Supply-Chain Watch supply-chain-advisory-sources.js supply-chain-advisory-sources.json'
   };
 
   for (const [relativePath, content] of Object.entries({ ...files, ...overrides })) {

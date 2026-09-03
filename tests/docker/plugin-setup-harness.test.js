@@ -10,7 +10,6 @@ const repoRoot = path.join(__dirname, '..', '..');
 const harnessRoot = path.join(repoRoot, 'docker', 'plugin-setup');
 const SUBPROCESS_TIMEOUT_MS = 30_000;
 const files = {
-  ci: path.join(repoRoot, '.github', 'workflows', 'ci.yml'),
   compose: path.join(harnessRoot, 'compose.yaml'),
   dockerfile: path.join(harnessRoot, 'Dockerfile'),
   fixtureProject: path.join(
@@ -269,15 +268,10 @@ test('fixture runner delegates to the cross-platform test entry point', () => {
   );
 });
 
-test('uses one shell-free focused runner across Linux, macOS, and Windows', () => {
-  const ci = read(files.ci);
+test('uses one shell-free focused runner across supported platforms', () => {
   const packageJson = read(files.packageJson);
   const platformRunner = read(files.platformRunner);
 
-  assert.match(
-    ci,
-    /os:\s*\[ubuntu-latest,\s*windows-latest,\s*macos-latest\]/
-  );
   assert.match(
     packageJson,
     /"test:plugin-setup-platform":\s*"node docker\/plugin-setup\/run-platform-tests\.js"/
