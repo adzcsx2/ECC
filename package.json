@@ -98,6 +98,7 @@
     "scripts/codex/check-plugin-cache.js",
     "scripts/codex/merge-codex-config.js",
     "scripts/codex/merge-mcp-config.js",
+    "scripts/codex/sync-ecc-commands-to-codex.js",
     "scripts/discussion-audit.js",
     "scripts/doctor.js",
     "scripts/ecc.js",

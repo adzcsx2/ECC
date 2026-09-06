@@ -293,6 +293,20 @@ node scripts/codex/check-plugin-cache.js
 
 Both add commands are idempotent. To refresh later, run `codex plugin marketplace upgrade ecc` followed by `codex plugin add ecc@ecc`. Codex stores one enabled plugin state in the active `CODEX_HOME`; it does not offer Claude's `user`, `project`, and `local` scopes. Its native hooks require an explicit trust decision and do not use Claude's four ECC hook profiles. Inside Codex, invoke `$configure-ecc` for the guided provider-aware flow.
 
+The native Codex plugin exposes ECC's shared skills, not Claude's `/ecc:*` slash-command namespace. If you need compatibility for all 96 maintained Claude commands—including `/ecc:code-review`—run the installer entrypoint for your platform:
+
+```bash
+./install.sh --target codex --profile minimal
+```
+
+On Windows PowerShell:
+
+```powershell
+.\install.ps1 --target codex --profile minimal
+```
+
+This creates `$ecc-<command>` skills under `~/.agents/skills/` and prompt aliases under `~/.codex/prompts/`, while preserving user-owned files. Remove that compatibility layer with `node scripts/uninstall.js --target codex`; native plugin caches are not touched.
+
 The older `scripts/sync-ecc-to-codex.sh` path is a deprecated compatibility option for users who intentionally need copied and merged configuration in `~/.codex`; it is not required for the native plugin. New sync runs write an ownership manifest so cleanup can preserve modified user files. Run Codex once first so `~/.codex/config.toml` exists, then:
 
 ```bash

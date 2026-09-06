@@ -88,6 +88,7 @@ function buildExpectedPublishPaths(repoRoot) {
     "scripts/codex/check-plugin-cache.js",
     "scripts/codex/merge-codex-config.js",
     "scripts/codex/merge-mcp-config.js",
+    "scripts/codex/sync-ecc-commands-to-codex.js",
     ".codex-plugin",
     "plugins/ecc",
     ".mcp.json",

@@ -6,7 +6,9 @@
  * target-specific mutation logic into testable Node code.
  */
 
+const fs = require('fs');
 const os = require('os');
+const path = require('path');
 const {
   SUPPORTED_INSTALL_TARGETS,
   listLegacyCompatibilityLanguages,
@@ -17,8 +19,11 @@ const {
   normalizeInstallRequest,
   parseInstallArgs,
 } = require('./lib/install/request');
+const { syncEccCommandsToCodex } = require('./codex/sync-ecc-commands-to-codex');
 const { getComputeSponsorCopy } = require('./lib/compute-sponsor');
 const { stripAnsi } = require('./lib/utils');
+
+const INSTALLER_SOURCE_ROOT = path.join(__dirname, '..');
 
 function getHelpText() {
   const languages = listLegacyCompatibilityLanguages();
@@ -133,9 +138,46 @@ function printHumanPlan(plan, dryRun) {
 
   if (!dryRun) {
     console.log(`\nDone. Install-state written to ${plan.installStatePath}`);
+    if (plan.codexCommandSync) {
+      const sync = plan.codexCommandSync;
+      console.log(`Codex command prompts synced: ${sync.writtenCount} -> ${sync.promptsDir}`);
+      console.log(`Codex command skills synced: ${sync.writtenSkillCount} -> ${sync.skillsRoot}`);
+      if (sync.skippedCount > 0 || sync.skippedSkillCount > 0) {
+        console.log(
+          `Codex user files preserved: ${sync.skippedCount + sync.skippedSkillCount}`
+        );
+      }
+      if (sync.removedCount > 0) {
+        console.log(`Codex stale command prompts removed: ${sync.removedCount}`);
+      }
+      if (sync.removedSkillCount > 0) {
+        console.log(`Codex stale command skills removed: ${sync.removedSkillCount}`);
+      }
+    }
   }
 
   console.log('\nCompute: ' + getComputeSponsorCopy());
+}
+
+function isCodexDetected(homeDir) {
+  if (process.env.CODEX_HOME) {
+    return true;
+  }
+
+  return fs.existsSync(path.join(homeDir || os.homedir(), '.codex'));
+}
+
+function shouldSyncCodexCommands({ plan, options, config, homeDir }) {
+  if (process.env.ECC_SYNC_CODEX_COMMANDS === '0') {
+    return false;
+  }
+
+  if (plan.target === 'codex') {
+    return true;
+  }
+
+  const hasExplicitTarget = Boolean(options.target || config?.target);
+  return !hasExplicitTarget && isCodexDetected(homeDir);
 }
 
 async function main() {
@@ -155,6 +197,7 @@ async function main() {
       previewInstallPlan,
     } = require('./lib/install-executor');
     const { createInstallPlanFromRequest } = require('./lib/install/runtime');
+    const homeDir = process.env.HOME || os.homedir();
     const defaultConfigPath = options.configPath || options.languages.length > 0
       ? null
       : findDefaultInstallConfigPath({ cwd: process.cwd() });
@@ -167,9 +210,10 @@ async function main() {
     });
     const rawPlan = createInstallPlanFromRequest(request, {
       projectRoot: process.cwd(),
-      homeDir: process.env.HOME || os.homedir(),
+      homeDir,
       env: process.env,
       claudeRulesDir: process.env.CLAUDE_RULES_DIR || null,
+      sourceRoot: INSTALLER_SOURCE_ROOT,
     });
 
     if (options.dryRun) {
@@ -183,6 +227,16 @@ async function main() {
     }
 
     let result = applyInstallPlan(rawPlan);
+    if (shouldSyncCodexCommands({ plan: result, options, config, homeDir })) {
+      result = {
+        ...result,
+        codexCommandSync: syncEccCommandsToCodex({
+          repoRoot: INSTALLER_SOURCE_ROOT,
+          codexHome: process.env.CODEX_HOME || path.join(homeDir, '.codex'),
+          skillsRoot: path.join(homeDir, '.agents', 'skills'),
+        }),
+      };
+    }
     const { projectCanonicalInstallState } = require('./lib/install-state-store-sync');
     const installStateProjection = await projectCanonicalInstallState(result.statePreview, {
       homeDir: process.env.HOME || os.homedir(),

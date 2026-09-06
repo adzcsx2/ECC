@@ -9,6 +9,7 @@ const {
   legacyCodexSyncStateExists,
   uninstallLegacyCodexSync,
 } = require('./lib/codex-legacy-sync');
+const { removeEccCommandBridges } = require('./codex/sync-ecc-commands-to-codex');
 
 function showHelp(exitCode = 0) {
   console.log(`
@@ -118,6 +119,39 @@ function includesCodexTarget(targets) {
   return targets.length === 0 || targets.includes('codex');
 }
 
+function appendCodexCommandBridgeResult(result, bridge) {
+  const hasArtifacts = bridge.removed.length > 0 || bridge.retained.length > 0;
+  if (!hasArtifacts) return result;
+
+  const bridgeResult = {
+    adapter: { id: 'codex-command-bridge', target: 'codex', kind: 'home' },
+    status: bridge.retained.length > 0 ? 'partial' : (bridge.dryRun ? 'planned' : 'uninstalled'),
+    installStatePath: null,
+    removedPaths: bridge.dryRun ? [] : bridge.removed,
+    plannedRemovals: bridge.dryRun ? bridge.removed : [],
+    retainedPaths: bridge.retained,
+    warning: bridge.retained.length > 0
+      ? 'Modified or unverifiable Codex command bridge files were preserved.'
+      : null,
+    error: null,
+  };
+  const results = [...result.results, bridgeResult];
+  const summary = results.reduce((accumulator, entry) => ({
+    checkedCount: accumulator.checkedCount + 1,
+    uninstalledCount: accumulator.uninstalledCount + (entry.status === 'uninstalled' ? 1 : 0),
+    plannedRemovalCount: accumulator.plannedRemovalCount + (entry.status === 'planned' ? 1 : 0),
+    partialCount: accumulator.partialCount + (entry.status === 'partial' ? 1 : 0),
+    errorCount: accumulator.errorCount + (entry.status === 'error' ? 1 : 0),
+  }), {
+    checkedCount: 0,
+    uninstalledCount: 0,
+    plannedRemovalCount: 0,
+    partialCount: 0,
+    errorCount: 0,
+  });
+  return { ...result, results, summary };
+}
+
 async function main() {
   try {
     const options = parseArgs(process.argv);
@@ -157,6 +191,13 @@ async function main() {
           dryRun: options.dryRun,
         });
         mode = 'legacy-codex-sync';
+      }
+
+      if (mode === 'install-state' && includesCodexTarget(options.targets)) {
+        result = appendCodexCommandBridgeResult(result, removeEccCommandBridges({
+          codexHome: codexHomePath(),
+          dryRun: options.dryRun,
+        }));
       }
 
       if (mode === 'install-state' && !options.dryRun) {

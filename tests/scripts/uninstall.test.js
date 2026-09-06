@@ -128,6 +128,40 @@ function runTests() {
     }
   })) passed++; else failed++;
 
+  if (test('uninstalls Codex command bridges alongside the Codex install-state', () => {
+    const homeDir = createTempDir('uninstall-codex-home-');
+    const projectRoot = createTempDir('uninstall-codex-project-');
+
+    try {
+      const installStdout = execFileSync('node', [INSTALL_SCRIPT, '--target', 'codex', '--profile', 'minimal'], {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          CODEX_HOME: path.join(homeDir, '.codex'),
+        },
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: CLI_TIMEOUT_MS,
+      });
+      assert.ok(installStdout.includes('Codex command skills synced:'));
+
+      const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-code-review.md');
+      const skillPath = path.join(homeDir, '.agents', 'skills', 'ecc-code-review', 'SKILL.md');
+      assert.ok(fs.existsSync(promptPath));
+      assert.ok(fs.existsSync(skillPath));
+
+      const uninstallResult = run(['--target', 'codex'], { cwd: projectRoot, homeDir });
+      assert.strictEqual(uninstallResult.code, 0, uninstallResult.stderr);
+      assert.ok(uninstallResult.stdout.includes('codex-command-bridge'));
+      assert.ok(!fs.existsSync(promptPath));
+      assert.ok(!fs.existsSync(skillPath));
+    } finally {
+      cleanup(homeDir);
+      cleanup(projectRoot);
+    }
+  })) passed++; else failed++;
+
   if (test('reverses non-copy operations and keeps unrelated files', () => {
     const homeDir = createTempDir('uninstall-home-');
     const projectRoot = createTempDir('uninstall-project-');

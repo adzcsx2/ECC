@@ -520,6 +520,26 @@ function runTests() {
     }
   })) passed++; else failed++;
 
+  if (test('explicit Codex install syncs all Claude command shims, including code-review', () => {
+    const homeDir = createTempDir('install-apply-home-');
+    const projectDir = createTempDir('install-apply-project-');
+
+    try {
+      const result = run(['--target', 'codex', '--profile', 'minimal'], { cwd: projectDir, homeDir });
+      assert.strictEqual(result.code, 0, result.stderr);
+
+      const promptPath = path.join(homeDir, '.codex', 'prompts', 'ecc-code-review.md');
+      const skillPath = path.join(homeDir, '.agents', 'skills', 'ecc-code-review', 'SKILL.md');
+      assert.ok(fs.existsSync(promptPath), 'Codex should receive the code-review prompt shim');
+      assert.ok(fs.existsSync(skillPath), 'Codex should receive the code-review skill shim');
+      assert.ok(fs.readFileSync(skillPath, 'utf8').includes('Original command: `/ecc:code-review`'));
+      assert.ok(result.stdout.includes('Codex command skills synced:'));
+    } finally {
+      cleanup(homeDir);
+      cleanup(projectDir);
+    }
+  })) passed++; else failed++;
+
   if (test('installs manifest profiles and writes non-legacy install-state', () => {
     const homeDir = createTempDir('install-apply-home-');
     const projectDir = createTempDir('install-apply-project-');

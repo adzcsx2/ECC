@@ -77,6 +77,24 @@ Once the cached skills are available, invoke `$configure-ecc` inside Codex for
 ECC's guided configuration. Installing the plugin again is idempotent and does
 not create a second scope or duplicate hook registration.
 
+The native plugin is a skills surface; it does not register Claude's `/ecc:*`
+slash-command namespace. For all 96 maintained Claude command equivalents,
+including `code-review`, use the installer entrypoint instead:
+
+```bash
+./install.sh --target codex --profile minimal
+```
+
+On Windows PowerShell:
+
+```powershell
+.\install.ps1 --target codex --profile minimal
+```
+
+The bridge installs `$ecc-<command>` skills in `~/.agents/skills/` and prompt
+aliases in `~/.codex/prompts/`. Remove those generated compatibility files with
+`node scripts/uninstall.js --target codex`; native plugin caches remain untouched.
+
 ## Native plugin versus legacy managed sync
 
 The commands above are the native Codex plugin path. The deprecated legacy managed sync
