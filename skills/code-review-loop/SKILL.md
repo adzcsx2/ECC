@@ -40,14 +40,22 @@ For a single report with no repairs, use `$ecc-code-review` directly.
 
 ## Establish the Review Scope
 
-For local changes, verify that the current directory is a Git worktree and
-record the immutable baseline:
+Choose exactly one baseline recipe before the first review pass. For local
+changes, verify that the current directory is a Git worktree and assign the
+current revision to the immutable baseline variable:
 
 ```bash
 git rev-parse --show-toplevel
-git rev-parse HEAD
+BASE_REV="$(git rev-parse HEAD)"
 git status --short
 ```
+
+Keep the resolved commit ID in working memory for the entire loop. Do not
+recompute or overwrite `BASE_REV`. For a PR, skip this local recipe and use the
+fixed merge-base recipe in [Pull Request Boundary](#pull-request-boundary).
+When shell sessions are not persistent, substitute the recorded literal commit
+ID for `$BASE_REV`, or reassign that exact value before each command; never
+derive it from the moving working tree again.
 
 At the start of every pass, rebuild the file inventory against that same
 baseline. Include staged changes, unstaged changes, untracked files, and files
@@ -70,15 +78,28 @@ Never reset, discard, overwrite, or revert pre-existing user changes.
 
 ### 1. Run a Fresh Complete Review
 
-At the beginning of every review pass, load and invoke `$ecc-code-review` in
-Local Review Mode. If the Codex bridge is unavailable in another harness, use
-the equivalent `/ecc:code-review` command or the authoritative workflow in
+At the beginning of every review pass, load and invoke `$ecc-code-review` as a
+fresh full-scope review. If the Codex bridge is unavailable in another harness,
+use the equivalent `/ecc:code-review` command or the authoritative workflow in
 `commands/code-review.md`; do not substitute a lighter checklist.
 
 For this loop, replace the default `git diff --name-only HEAD` discovery with
-the immutable-baseline inventory above, while retaining every other applicable
-review phase and category. This override is what keeps committed PR changes and
-earlier repairs inside every pass.
+the immutable-baseline inventory above. Apply the complete seven-category
+rubric from `$ecc-code-review`'s PR Review Mode to both local and PR changes:
+
+- `Correctness`
+- `Type Safety`
+- `Pattern Compliance`
+- `Security`
+- `Performance`
+- `Completeness`
+- `Maintainability`
+
+This is a scope-and-rubric override, not permission to run PR side effects.
+During the loop, use the command's context, review, validation, and decision
+guidance, but do not create or update a review artifact and do not publish a
+GitHub review. This keeps committed PR changes and earlier repairs inside every
+pass without narrowing the review to the smaller local checklist.
 
 Give the review pass the immutable baseline and current full file inventory.
 Apply every review category from `$ecc-code-review`, reread the project rules,
@@ -96,11 +117,22 @@ file, line, description, and suggested fix.
 
 - If the pass reports any `CRITICAL`, `HIGH`, or `MEDIUM` finding, continue to
   repairs.
-- If it reports none, run all applicable project validation: targeted tests,
-  then the available type check, lint, test, and build commands.
-- Treat a validation failure caused by the current changes as a blocking
-  finding, repair it, and start another complete review pass.
-- If the fresh pass is clean and validation checks pass, stop successfully.
+- Success requires zero `CRITICAL`, zero `HIGH`, and zero `MEDIUM` findings. At
+  that point, run all applicable project validation: targeted tests, then the
+  available type check, lint, test, and build commands.
+- If a validation failure is caused by the current review scope, repair it and
+  start a fresh complete review.
+- If a validation failure is pre-existing or out-of-scope, stop immediately
+  with `BLOCKED` and preserve its evidence.
+- If available evidence cannot determine causality safely, stop with `BLOCKED`
+  instead of guessing or modifying unrelated code.
+- If the fresh pass is clean and every validation check passes, stop
+  successfully.
+
+Diagnose each distinct validation failure once. Do not start another review
+pass unless a reviewed file or the review scope changed. A failed command by
+itself is not progress and must not consume the remaining pass budget
+repeatedly.
 
 Snapshot the reviewed scope immediately before validation. If validation
 changes the reviewed scope or creates a new non-ignored file, start another
@@ -158,6 +190,8 @@ Stop with **blocked**, preserve the working tree, and report the evidence when:
 - two consecutive passes make no material progress on the same findings;
 - a safe fix requires a product decision, unavailable credential, destructive
   migration, secret rotation, or authority outside the user's request;
+- a required validation failure is pre-existing, out-of-scope, or cannot be
+  attributed safely;
 - the review workflow or required validator is unavailable and no equivalent
   local check can establish the gate.
 
@@ -167,10 +201,23 @@ silently turn a blocked stop into success.
 ## Pull Request Boundary
 
 Do not repeatedly publish GitHub reviews. When the change originates from a
-PR, check out the PR branch and run the loop locally against a fixed merge base;
-skip `$ecc-code-review`'s publish phase during intermediate passes. Publish one
-final PR review only when the user explicitly requests it after the loop is
-clean.
+PR, check out the PR branch, resolve the remote that tracks the PR's base
+repository, and capture the merge base once before the first pass:
+
+```bash
+PR_NUMBER="<PR number>"
+gh pr checkout "$PR_NUMBER"
+BASE_REF="$(gh pr view "$PR_NUMBER" --json baseRefName --jq .baseRefName)"
+BASE_REMOTE="<remote for the PR base repository, usually origin>"
+git fetch "$BASE_REMOTE" "$BASE_REF"
+BASE_REV="$(git merge-base HEAD FETCH_HEAD)"
+```
+
+Resolve the placeholders before executing the recipe and verify that
+`BASE_REV` is a commit. Do not fetch again or recompute it during the loop.
+Run every pass locally against this fixed merge base. Skip `$ecc-code-review`'s
+artifact and publish phases during intermediate passes. Publish one final PR
+review only when the user explicitly requests it after the loop is clean.
 
 ## Final Report
 
