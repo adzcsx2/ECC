@@ -16,7 +16,8 @@ For repo navigation, surface ownership, and PR diff packet guidance, read
 
 ## Skills Discovery
 
-Skills are auto-loaded from `.agents/skills/`. Each skill contains:
+Project-local skills are auto-loaded from `.agents/skills/`, and enabled Codex
+plugins provide their own namespaced skill surface. Each project-local skill contains:
 - `SKILL.md` — Detailed instructions and workflow
 - `agents/openai.yaml` — Codex interface metadata
 

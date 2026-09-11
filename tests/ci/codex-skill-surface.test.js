@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Validate the Codex-facing .agents/skills surface.
+ * Validate the Codex-facing project-local and plugin skill surfaces.
  */
 
 const assert = require('assert');
@@ -9,6 +9,7 @@ const path = require('path');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CODEX_SKILLS_DIR = path.join(REPO_ROOT, '.agents', 'skills');
+const CANONICAL_SKILLS_DIR = path.join(REPO_ROOT, 'skills');
 const ALLOWED_FRONTMATTER_KEYS = new Set([
   'allowed-tools',
   'description',
@@ -81,16 +82,18 @@ function run() {
     assert.ok(skillDirs.includes('mle-workflow'), 'Expected .agents/skills/mle-workflow');
   })) passed++; else failed++;
 
-  if (test('migrated document workflows are present in both Codex skill surfaces', () => {
+  if (test('migrated document workflows use the canonical plugin skill surface', () => {
     for (const skillName of ['ecc-plan-doc', 'ecc-execute-doc']) {
-      const canonicalPath = path.join(REPO_ROOT, 'skills', skillName, 'SKILL.md');
-      const mirrorPath = path.join(CODEX_SKILLS_DIR, skillName, 'SKILL.md');
+      const canonicalPath = path.join(CANONICAL_SKILLS_DIR, skillName, 'SKILL.md');
 
       assert.ok(fs.existsSync(canonicalPath), `Expected skills/${skillName}/SKILL.md`);
-      assert.ok(fs.existsSync(mirrorPath), `Expected .agents/skills/${skillName}/SKILL.md`);
       assert.ok(fs.readFileSync(canonicalPath, 'utf8').includes(`name: ${skillName}`));
-      assert.ok(fs.readFileSync(mirrorPath, 'utf8').includes(`name: ${skillName}`));
     }
+
+    assert.ok(
+      !fs.existsSync(path.join(CODEX_SKILLS_DIR, 'ecc-plan-doc')),
+      'ecc-plan-doc must not be duplicated under .agents/skills'
+    );
   })) passed++; else failed++;
 
   if (test('SKILL.md frontmatter matches Codex validator expectations', () => {
