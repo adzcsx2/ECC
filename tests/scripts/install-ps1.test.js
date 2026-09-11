@@ -64,7 +64,15 @@ function run(powerShellCommand, args = [], options = {}) {
   };
 
   try {
-    const stdout = execFileSync(powerShellCommand, ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT, ...args], {
+    const stdout = execFileSync(powerShellCommand, [
+      '-NoLogo',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      options.scriptPath || SCRIPT,
+      ...args,
+    ], {
       cwd: options.cwd,
       env,
       encoding: 'utf8',
@@ -125,6 +133,34 @@ function runTests() {
 
   if (!powerShellCommand) {
     console.log('  - skipped delegation test; PowerShell is not available in PATH');
+  } else if (test('starts the AI-tool selector when no arguments are provided', () => {
+    const fixtureRoot = createTempDir('install-ps1-interactive-');
+    const fixtureScript = path.join(fixtureRoot, 'install.ps1');
+    const fixtureInstaller = path.join(fixtureRoot, 'scripts', 'install-apply.js');
+
+    try {
+      fs.mkdirSync(path.dirname(fixtureInstaller), { recursive: true });
+      fs.mkdirSync(path.join(fixtureRoot, 'node_modules'));
+      fs.copyFileSync(SCRIPT, fixtureScript);
+      fs.writeFileSync(
+        fixtureInstaller,
+        'console.log(JSON.stringify(process.argv.slice(2)));\n'
+      );
+
+      const result = run(powerShellCommand, [], {
+        cwd: fixtureRoot,
+        scriptPath: fixtureScript,
+      });
+
+      assert.strictEqual(result.code, 0, result.stderr);
+      assert.deepStrictEqual(JSON.parse(result.stdout.trim()), ['--interactive']);
+    } finally {
+      cleanup(fixtureRoot);
+    }
+  })) passed++; else failed++;
+
+  if (!powerShellCommand) {
+    console.log('  - skipped explicit delegation test; PowerShell is not available in PATH');
   } else if (test('delegates to the Antigravity installer while preserving the project cwd', () => {
     const homeDir = createTempDir('install-ps1-home-');
     const projectDir = createTempDir('install-ps1-project-');

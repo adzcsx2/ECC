@@ -49,5 +49,10 @@ if (-not (Test-Path -LiteralPath $nodeModules)) {
     finally { Pop-Location }
 }
 
-& node $installerScript @args
+$installerArgs = @($args)
+if ($installerArgs.Count -eq 0) {
+    $installerArgs = @('--interactive')
+}
+
+& node $installerScript @installerArgs
 exit $LASTEXITCODE

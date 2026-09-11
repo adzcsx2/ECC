@@ -29,4 +29,8 @@ else
     NODE_SCRIPT="$SCRIPT_DIR/scripts/install-apply.js"
 fi
 
+if [ "$#" -eq 0 ]; then
+    set -- --interactive
+fi
+
 exec node "$NODE_SCRIPT" "$@"

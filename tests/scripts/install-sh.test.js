@@ -130,6 +130,34 @@ function runTests() {
     }
   })) passed++; else failed++;
 
+  if (test('starts the AI-tool selector when no arguments are provided', () => {
+    const sourceDir = createTempDir('install-sh-interactive-');
+    const projectDir = createTempDir('install-sh-interactive-target-');
+    const scriptsDir = path.join(sourceDir, 'scripts');
+    const fixtureScript = path.join(sourceDir, 'install.sh');
+
+    try {
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      fs.mkdirSync(path.join(sourceDir, 'node_modules'));
+      fs.copyFileSync(SCRIPT, fixtureScript);
+      fs.writeFileSync(
+        path.join(scriptsDir, 'install-apply.js'),
+        'console.log(JSON.stringify(process.argv.slice(2)));\n'
+      );
+
+      const result = run([], {
+        cwd: projectDir,
+        scriptPath: fixtureScript,
+      });
+
+      assert.strictEqual(result.code, 0, result.stderr);
+      assert.deepStrictEqual(JSON.parse(result.stdout.trim()), ['--interactive']);
+    } finally {
+      cleanup(sourceDir);
+      cleanup(projectDir);
+    }
+  })) passed++; else failed++;
+
   if (test('exposes the corrected Claude target help text', () => {
     const result = run(['--help']);
     assert.strictEqual(result.code, 0, result.stderr);

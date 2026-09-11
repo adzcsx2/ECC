@@ -275,8 +275,23 @@ function runGuidedMain(guidedArgs) {
     });
 }
 
+function runInteractiveMain(interactiveArgs) {
+  Promise.resolve()
+    .then(() => require('./install-wizard').main(interactiveArgs))
+    .then(exitCode => {
+      process.exitCode = exitCode;
+    })
+    .catch(error => {
+      process.stderr.write(`Error: ${sanitizeTerminalText(error?.message)}\n`);
+      process.exitCode = 1;
+    });
+}
+
 const cliArgs = process.argv.slice(2);
-if (cliArgs.includes('--guided')) {
+if (cliArgs.includes('--interactive')) {
+  const interactiveArgs = cliArgs.filter(argument => argument !== '--interactive');
+  runInteractiveMain(interactiveArgs);
+} else if (cliArgs.includes('--guided')) {
   const guidedArgs = cliArgs.filter(argument => argument !== '--guided');
   runGuidedMain(guidedArgs);
 } else {

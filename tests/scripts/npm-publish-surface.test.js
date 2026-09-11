@@ -58,6 +58,7 @@ function buildExpectedPublishPaths(repoRoot) {
     "scripts/work-items.js",
     "scripts/install-apply.js",
     "scripts/install-guided.js",
+    "scripts/install-wizard.js",
     "scripts/install-plan.js",
     "scripts/ito.js",
     "scripts/list-installed.js",
