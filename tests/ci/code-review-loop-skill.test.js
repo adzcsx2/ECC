@@ -92,6 +92,132 @@ function assertCompleteRubric(skill) {
   }
 }
 
+function assertReviewContract(skill) {
+  const contract = section(
+    skill,
+    '## Build the Review Contract',
+    '## Review-Fix-Review Cycle'
+  );
+  const normalizedContract = normalizeWhitespace(contract);
+
+  for (const source of [
+    'user request',
+    'execution document',
+    'acceptance',
+    'test',
+  ]) {
+    assert.match(
+      normalizedContract,
+      new RegExp(source, 'i'),
+      `review contract must include the ${source} source`
+    );
+  }
+
+  for (const status of ['PASS', 'FAIL', 'NOT_VERIFIED', 'BLOCKED']) {
+    assert.match(
+      contract,
+      new RegExp('`' + status + '`'),
+      `traceability matrix must define ${status}`
+    );
+  }
+
+  assert.match(normalizedContract, /every mandatory acceptance.*row/i);
+  assert.match(normalizedContract, /unchecked|planned/i);
+  assert.match(normalizedContract, /TBD|not verified/i);
+  assert.match(normalizedContract, /silently downgrade.*diff-only review/i);
+  assert.match(normalizedContract, /cannot.*`CLEAN`|must not.*`CLEAN`/i);
+}
+
+function assertEndToEndChainReview(skill) {
+  const review = section(
+    skill,
+    '### 1. Run a Fresh Complete Review',
+    '### 2. Evaluate the Gate'
+  );
+  const normalizedReview = normalizeWhitespace(review);
+
+  assert.match(normalizedReview, /relevant unchanged files/i);
+  assert.match(normalizedReview, /user entry point/i);
+  assert.match(normalizedReview, /persistence|migration/i);
+  assert.match(normalizedReview, /external integration|external side effect/i);
+  assert.match(normalizedReview, /response|projection/i);
+  assert.match(normalizedReview, /refresh|retry|cancel/i);
+  assert.match(normalizedReview, /counterexample|failure scenario/i);
+}
+
+function assertEvidenceGate(skill) {
+  const gate = section(
+    skill,
+    '### 2. Evaluate the Gate',
+    '### 3. Repair the Current Findings'
+  );
+  const normalizedGate = normalizeWhitespace(gate);
+
+  assert.match(
+    normalizedGate,
+    /build.*(?:does not|cannot).*user-visible|user-visible.*(?:not|cannot).*build/i
+  );
+  assert.match(
+    normalizedGate,
+    /static.*(?:does not|cannot).*runtime|runtime.*(?:not|cannot).*static/i
+  );
+  assert.match(normalizedGate, /primary user flow.*(?:HIGH|CRITICAL)/i);
+  assert.match(normalizedGate, /mandatory acceptance.*`PASS`/i);
+  assert.match(normalizedGate, /code.*clean.*acceptance.*blocked/i);
+}
+
+function assertReportedSymptomsAndRuntimePrerequisites(skill) {
+  const contract = section(
+    skill,
+    '## Build the Review Contract',
+    '## Review-Fix-Review Cycle'
+  );
+  const review = section(
+    skill,
+    '### 1. Run a Fresh Complete Review',
+    '### 2. Evaluate the Gate'
+  );
+  const gate = section(
+    skill,
+    '### 2. Evaluate the Gate',
+    '### 3. Repair the Current Findings'
+  );
+
+  assert.match(
+    normalizeWhitespace(contract),
+    /reported symptom.*(?:traceability|acceptance).*row/i
+  );
+  assert.match(
+    normalizeWhitespace(contract),
+    /reproduce|replay.*exact.*path|exact.*path.*reproduce|replay/i
+  );
+  assert.match(
+    normalizeWhitespace(review),
+    /runtime prerequisites.*migration.*deployment.*configuration/i
+  );
+  assert.match(normalizeWhitespace(review), /partial deployment|version skew/i);
+  assert.match(normalizeWhitespace(gate), /unit tests.*isolated/i);
+  assert.match(normalizeWhitespace(gate), /integration.*end-to-end|end-to-end.*integration/i);
+}
+
+function assertFinalReportCannotHideBlockedExecution(skill) {
+  const stop = section(skill, '## Stop Conditions', '## Pull Request Boundary');
+  const finalReport = skill.slice(skill.indexOf('## Final Report'));
+  const normalizedStop = normalizeWhitespace(stop);
+  const normalizedFinal = normalizeWhitespace(finalReport);
+
+  assert.match(
+    normalizedStop,
+    /execution document.*unchecked.*blocked.*not-verified mandatory work/i
+  );
+  assert.match(normalizedFinal, /review contract sources/i);
+  assert.match(normalizedFinal, /`PASS`.*`FAIL`.*`NOT_VERIFIED`.*`BLOCKED`/i);
+  assert.match(normalizedFinal, /uncovered/i);
+  assert.match(normalizedFinal, /code-review verdict.*acceptance verdict/i);
+  assert.match(normalizedFinal, /Do not summarize the work as complete/i);
+  assert.match(normalizedFinal, /authorization or evidence is still missing/i);
+}
+
 function assertValidationDispositions(skill) {
   const gate = section(
     skill,
@@ -168,6 +294,26 @@ function main() {
     [
       'applies the complete seven-category review rubric on every pass',
       () => assertCompleteRubric(skill),
+    ],
+    [
+      'builds a requirement and acceptance contract before reviewing code',
+      () => assertReviewContract(skill),
+    ],
+    [
+      'traces each behavior through the complete runtime chain',
+      () => assertEndToEndChainReview(skill),
+    ],
+    [
+      'matches validation evidence to the claimed behavior before CLEAN',
+      () => assertEvidenceGate(skill),
+    ],
+    [
+      'replays reported symptoms and verifies runtime prerequisites',
+      () => assertReportedSymptomsAndRuntimePrerequisites(skill),
+    ],
+    [
+      'prevents blocked execution documents from being reported as complete',
+      () => assertFinalReportCannotHideBlockedExecution(skill),
     ],
     [
       'requires deterministic validation dispositions before success',
